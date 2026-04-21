@@ -1,0 +1,11 @@
+{
+  "hr_umbral_bpm": 85.2,
+  "rmssd_umbral_ms": 43.4,
+  "hr_baseline_mean": 72.4,
+  "hr_stress_mean": 97.9,
+  "rmssd_baseline_mean": 51.0,
+  "rmssd_stress_mean": 35.8,
+  "dataset": "WESAD",
+  "n_sujetos": 15,
+  "ventana_seg": 60
+}
