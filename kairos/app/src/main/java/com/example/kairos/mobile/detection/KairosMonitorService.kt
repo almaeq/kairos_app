@@ -81,22 +81,22 @@ class KairosMonitorService : Service() {
         Log.d("KairosMonitor", "Ciclo activo — esperando datos del smartwatch")
 
         // ── Comentado hasta implementar Wear OS DataClient ────────────────────
-//        val samples = healthConnect.readHeartRateSamples()
-//        if (samples.isEmpty()) return
-//
-//        val steps  = healthConnect.readStepsInWindow()
-//
-//        val result = detector.analyze(
-//            hrSamples            = samples,
-//            stepsInWindow        = steps,
-//            accelerometerMagnitude = 0.0
-//        ) ?: return
-//
-//        Log.d("KairosMonitor", result.toLogString())
-//
-//        if (result.isCrisisDetected) {
-//            broadcastCrisis(result)
-//        }
+        val samples = healthConnect.readHeartRateSamples()
+        if (samples.isEmpty()) return
+
+        val steps  = healthConnect.readStepsInWindow()
+
+        val result = detector.analyze(
+            hrSamples            = samples,
+            stepsInWindow        = steps,
+            accelerometerMagnitude = 0.0
+        ) ?: return
+
+        Log.d("KairosMonitor", result.toLogString())
+
+        if (result.isCrisisDetected) {
+            broadcastCrisis(result)
+        }
     }
 
     private fun broadcastCrisis(result: DetectionResult) {

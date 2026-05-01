@@ -1,0 +1,9 @@
+{
+  "metodo": "Z-Score individual",
+  "sensitivity_sigmas": 2.5,
+  "justificacion": "Regla empirica 2.5sigma = 98.7% certeza estadistica",
+  "auc_hr": 0.92,
+  "auc_rmssd": 0.659,
+  "auc_combined": 0.868,
+  "dataset_validacion": "WESAD 15 sujetos"
+}

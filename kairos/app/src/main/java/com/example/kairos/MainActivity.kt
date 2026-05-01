@@ -15,7 +15,8 @@ import java.time.Instant
 class MainActivity : ComponentActivity() {
 
     private lateinit var healthConnect: HealthConnectManager
-    private val detector = CrisisDetector()
+    private val detector    = CrisisDetector()  // datos reales del Pixel Watch
+    private val detectorSim = CrisisDetector()  // tests simulados — baseline separado
 
     private val requestPermissions =
         registerForActivityResult(
@@ -67,13 +68,13 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             Log.d("KAIROS", "--- Iniciando ciclo de prueba ---")
 
-            val steps = healthConnect.readStepsInWindow(windowSeconds = 3600L)
+            val steps   = healthConnect.readStepsInWindow(windowSeconds = 3600L)
             val samples = healthConnect.readHeartRateSamples(windowSeconds = 3600L)
 
             Log.d("KAIROS", "Pasos reales del reloj: $steps")
             Log.d("KAIROS", "Muestras HR obtenidas: ${samples.size}")
 
-            // ── Test con datos reales si hay HR ──────────────────────────────
+            // ── Datos reales si hay HR disponible ────────────────────────────
             if (samples.isNotEmpty()) {
                 Log.d("KAIROS", "── Test con datos REALES ──")
                 val result = detector.analyze(
@@ -83,55 +84,52 @@ class MainActivity : ComponentActivity() {
                 )
                 if (result != null) {
                     Log.d("KAIROS", "Resultado: ${result.toLogString()}")
-                    Log.d("KAIROS", "  HR threshold: ${result.hrThresholdExceeded}")
-                    Log.d("KAIROS", "  HRV threshold: ${result.hrvThresholdExceeded}")
+                    Log.d("KAIROS", "  HR superado (Z>2.5σ): ${result.hrThresholdExceeded}")
+                    Log.d("KAIROS", "  HRV superado (Z<-2.5σ): ${result.hrvThresholdExceeded}")
                     Log.d("KAIROS", "  En reposo: ${result.movementFilterPassed}")
+                    Log.d("KAIROS", "  Calibración: ${detector.getCalibrationStatus()}")
                     Log.d("KAIROS", "  CRISIS DETECTADA: ${result.isCrisisDetected}")
                 }
             }
 
-            // ── Tests simulados — siempre corren ─────────────────────────────
+            // ── Tests simulados Z-Score (siempre corren, detector separado) ──
             Log.d("KAIROS", "")
-            Log.d("KAIROS", "── Tests simulados con pasos REALES ($steps pasos) ──")
+            Log.d("KAIROS", "── Tests simulados Z-Score (pasos reales: $steps) ──")
 
-            detector.resetConsecutiveCount()
-
-            // Escenario 1: calma
-            Log.d("KAIROS", "── Escenario 1: Calma ──")
+            // Fase 1: calibración baseline
+            Log.d("KAIROS", "── Fase 1: Calibración ──")
             repeat(3) { v ->
-                val r = detector.analyze(buildSamples(70L), stepsInWindow = steps)
-                Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-                Log.d("KAIROS", "  Crisis: ${r?.isCrisisDetected} (esperado: false)")
+                val r = detectorSim.analyze(buildSamples(70L), stepsInWindow = 5L)
+                Log.d("KAIROS", "  Calibración $v → ${detectorSim.getCalibrationStatus()}")
+                Log.d("KAIROS", "  HR=${r?.averageHrBpm?.let { "%.1f".format(it) }} | RMSSD=${r?.rmssdMs?.let { "%.1f".format(it) }}")
             }
 
-            detector.resetConsecutiveCount()
-
-            // Escenario 2: ejercicio
-            Log.d("KAIROS", "── Escenario 2: Ejercicio ──")
-            repeat(3) { v ->
-                val r = detector.analyze(
+            // Fase 2: ejercicio (falso positivo filtrado por ACC)
+            Log.d("KAIROS", "── Fase 2: Ejercicio ──")
+            repeat(2) { v ->
+                val r = detectorSim.analyze(
                     hrSamples              = buildSamples(95L),
-                    stepsInWindow          = steps,
+                    stepsInWindow          = 120L,
                     accelerometerMagnitude = 0.20
                 )
-                Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-                Log.d("KAIROS", "  Crisis: ${r?.isCrisisDetected} (esperado: false)")
+                Log.d("KAIROS", "  Ventana $v → Crisis=${r?.isCrisisDetected} (esperado: false)")
+                Log.d("KAIROS", "  En reposo: ${r?.movementFilterPassed} ← filtrado por ACC ✅")
             }
 
-            detector.resetConsecutiveCount()
+            detectorSim.resetConsecutiveCount()
 
-            // Escenario 3: crisis
-            Log.d("KAIROS", "── Escenario 3: Crisis ──")
+            // Fase 3: crisis real
+            Log.d("KAIROS", "── Fase 3: Crisis ──")
             repeat(3) { v ->
-                val r = detector.analyze(
+                val r = detectorSim.analyze(
                     hrSamples              = buildSamples(90L),
-                    stepsInWindow          = 2L,   // forzamos reposo para ver la crisis
+                    stepsInWindow          = 2L,
                     accelerometerMagnitude = 0.03
                 )
                 Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-                Log.d("KAIROS", "  HR superado: ${r?.hrThresholdExceeded}")
-                Log.d("KAIROS", "  HRV superado: ${r?.hrvThresholdExceeded}")
-                Log.d("KAIROS", "  En reposo:    ${r?.movementFilterPassed}")
+                Log.d("KAIROS", "  HR superado (Z>2.5σ): ${r?.hrThresholdExceeded}")
+                Log.d("KAIROS", "  HRV superado (Z<-2.5σ): ${r?.hrvThresholdExceeded}")
+                Log.d("KAIROS", "  En reposo: ${r?.movementFilterPassed}")
                 Log.d("KAIROS", "  >>> CRISIS: ${r?.isCrisisDetected} ${if (v >= 1) "(esperado: true ✅)" else "(esperado: false)"}")
             }
 
@@ -148,57 +146,57 @@ class MainActivity : ComponentActivity() {
 
     private fun runSimulatedTests() {
         Log.d("KAIROS", "========================================")
-        Log.d("KAIROS", "  TEST SIMULADO — sin sensor real")
+        Log.d("KAIROS", "  TEST Z-SCORE — sin sensor real")
         Log.d("KAIROS", "========================================")
 
-        Log.d("KAIROS", "── Escenario 1: Usuario en calma ──")
+        // Fase 1: calibración baseline
+        Log.d("KAIROS", "── Fase 1: Calibración baseline ──")
         repeat(3) { v ->
-            val r = detector.analyze(buildSamples(70L), stepsInWindow = 5L)
-            Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-            Log.d("KAIROS", "  Crisis: ${r?.isCrisisDetected} (esperado: false)")
+            val r = detectorSim.analyze(buildSamples(70L), stepsInWindow = 5L)
+            Log.d("KAIROS", "  Calibración $v → ${detectorSim.getCalibrationStatus()}")
+            Log.d("KAIROS", "  HR=${r?.averageHrBpm?.let { "%.1f".format(it) }} | RMSSD=${r?.rmssdMs?.let { "%.1f".format(it) }}")
         }
 
-        detector.resetConsecutiveCount()
-
-        Log.d("KAIROS", "── Escenario 2: Actividad física ──")
-        repeat(3) { v ->
-            val r = detector.analyze(
+        // Fase 2: ejercicio (falso positivo)
+        Log.d("KAIROS", "── Fase 2: Ejercicio (falso positivo) ──")
+        repeat(2) { v ->
+            val r = detectorSim.analyze(
                 hrSamples              = buildSamples(95L),
                 stepsInWindow          = 120L,
                 accelerometerMagnitude = 0.20
             )
-            Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-            Log.d("KAIROS", "  Crisis: ${r?.isCrisisDetected} (esperado: false)")
+            Log.d("KAIROS", "  Ventana $v → Crisis=${r?.isCrisisDetected} (esperado: false)")
+            Log.d("KAIROS", "  En reposo: ${r?.movementFilterPassed} ← filtrado por ACC ✅")
         }
 
-        detector.resetConsecutiveCount()
+        detectorSim.resetConsecutiveCount()
 
-        Log.d("KAIROS", "── Escenario 3: Crisis real ──")
+        // Fase 3: crisis real
+        Log.d("KAIROS", "── Fase 3: Crisis real ──")
         repeat(3) { v ->
-            val r = detector.analyze(
+            val r = detectorSim.analyze(
                 hrSamples              = buildSamples(90L),
                 stepsInWindow          = 2L,
                 accelerometerMagnitude = 0.03
             )
             Log.d("KAIROS", "  Ventana $v → ${r?.toLogString()}")
-            Log.d("KAIROS", "  HR superado: ${r?.hrThresholdExceeded}")
-            Log.d("KAIROS", "  HRV superado: ${r?.hrvThresholdExceeded}")
-            Log.d("KAIROS", "  En reposo:    ${r?.movementFilterPassed}")
+            Log.d("KAIROS", "  HR superado (Z>2.5σ): ${r?.hrThresholdExceeded}")
+            Log.d("KAIROS", "  HRV superado (Z<-2.5σ): ${r?.hrvThresholdExceeded}")
+            Log.d("KAIROS", "  En reposo: ${r?.movementFilterPassed}")
             Log.d("KAIROS", "  >>> CRISIS: ${r?.isCrisisDetected} ${if (v >= 1) "(esperado: true ✅)" else "(esperado: false)"}")
         }
 
         Log.d("KAIROS", "========================================")
-        Log.d("KAIROS", "  Tests finalizados — revisá Logcat")
+        Log.d("KAIROS", "  Tests finalizados")
         Log.d("KAIROS", "========================================")
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private fun buildSamples(bpm: Long, count: Int = 10): List<HeartRateRecord.Sample> {
-        val now = Instant.now()
+        val now    = Instant.now()
         val random = java.util.Random()
         return (0 until count).map { i ->
-            // Variación de ±5 bpm para simular HRV realista
             val variation = (random.nextInt(11) - 5).toLong()
             HeartRateRecord.Sample(
                 time           = now.minusSeconds((count - i) * 6L),
@@ -206,15 +204,16 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+
     private fun isEmulator(): Boolean =
-        android.os.Build.BRAND.startsWith("generic") ||
-                android.os.Build.DEVICE.startsWith("generic") ||
+        android.os.Build.BRAND.startsWith("generic")       ||
+                android.os.Build.DEVICE.startsWith("generic")      ||
                 android.os.Build.FINGERPRINT.startsWith("generic") ||
                 android.os.Build.FINGERPRINT.startsWith("unknown") ||
-                android.os.Build.HARDWARE.contains("goldfish") ||
-                android.os.Build.HARDWARE.contains("ranchu") ||
-                android.os.Build.MODEL.contains("Emulator") ||
-                android.os.Build.MODEL.contains("Android SDK") ||
-                android.os.Build.PRODUCT.contains("sdk") ||
+                android.os.Build.HARDWARE.contains("goldfish")     ||
+                android.os.Build.HARDWARE.contains("ranchu")       ||
+                android.os.Build.MODEL.contains("Emulator")        ||
+                android.os.Build.MODEL.contains("Android SDK")     ||
+                android.os.Build.PRODUCT.contains("sdk")           ||
                 android.os.Build.PRODUCT.contains("emulator")
 }

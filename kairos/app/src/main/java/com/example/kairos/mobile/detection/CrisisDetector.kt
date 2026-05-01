@@ -1,41 +1,34 @@
 package com.example.kairos.mobile.detection
 
 import androidx.health.connect.client.records.HeartRateRecord
-
+import kotlin.math.sqrt
 
 /**
- * Detector de crisis multivariable con umbrales WESAD.
+ * Detector de crisis con método Z-Score individual.
  *
- * Cubre US#3556 — detectar caídas en VFC + taquicardia en reposo
- * para distinguir una crisis de actividad física normal.
+ * Cambio respecto a v1:
+ *   En lugar de comparar HR y RMSSD contra umbrales fijos WESAD,
+ *   calcula el Z-Score respecto al baseline PERSONAL del usuario.
+ *   Detección = Z-Score > 2.5σ en HR o RMSSD, estando en reposo.
  *
- * Lógica de 3 capas (según anteproyecto KAIROS):
- *   Capa 1 — HR:  ¿taquicardia? (umbral fijo WESAD + umbral relativo personal)
- *   Capa 2 — HRV: ¿caída de RMSSD? (umbral fijo WESAD)
- *   Capa 3 — ACC: ¿usuario en reposo? (filtro de falsos positivos)
- *
- *   Crisis = (Capa1 OR Capa2) AND Capa3
- *   Confirmado = N ventanas consecutivas positivas
+ *   Esto resuelve el problema de variabilidad inter-sujeto:
+ *   una HR de 85 bpm es normal para alguien activo pero alta para
+ *   alguien sedentario. El Z-Score normaliza por persona.
  */
 class CrisisDetector {
 
     private var consecutivePositiveWindows = 0
 
-    /**
-     * Baseline HR personal. Se calibra dinámicamente con EMA (α=0.1)
-     * cuando el usuario está claramente en calma.
-     * Inicialmente null → sólo se usa el umbral absoluto WESAD.
-     */
-    private var userBaselineHr: Double? = null
+    private val hrBaseline = RunningStats(
+        fallbackMean = WesadThresholds.HR_BASELINE_MEAN,
+        fallbackStd  = WesadThresholds.HR_BASELINE_STD
+    )
+    private val hrvBaseline = RunningStats(
+        fallbackMean = WesadThresholds.HRV_RMSSD_BASELINE_MEAN,
+        fallbackStd  = WesadThresholds.HRV_RMSSD_BASELINE_STD
+    )
+    private var calibrationWindows = 0
 
-    /**
-     * Analiza una ventana de datos y retorna el resultado de detección.
-     *
-     * @param hrSamples           Muestras HR de la ventana actual
-     * @param stepsInWindow       Pasos en la ventana (proxy movimiento desde Health Connect)
-     * @param accelerometerMagnitude  Magnitud ACC del smartwatch (0.0 si no disponible)
-     * @return DetectionResult, o null si no hay suficientes datos
-     */
     fun analyze(
         hrSamples: List<HeartRateRecord.Sample>,
         stepsInWindow: Long,
@@ -44,37 +37,32 @@ class CrisisDetector {
         val meanHr = HrvCalculator.calculateMeanHr(hrSamples) ?: return null
         val rmssd  = HrvCalculator.calculateRmssd(hrSamples)  ?: return null
 
-        // ── Capa 1: taquicardia ───────────────────────────────────────────────
-        val hrAbsolute = meanHr >= WesadThresholds.HR_THRESHOLD_BPM
-        val hrRelative = userBaselineHr?.let { baseline ->
-            ((meanHr - baseline) / baseline) * 100 >= WesadThresholds.HR_ELEVATION_PERCENT
-        } ?: false
-        val hrThresholdExceeded = hrAbsolute || hrRelative
-
-        // ── Capa 2: caída HRV ─────────────────────────────────────────────────
-        val hrvThresholdExceeded = rmssd < WesadThresholds.HRV_RMSSD_THRESHOLD_MS
-
-        // ── Capa 3: filtro de movimiento (falsos positivos) ───────────────────
-        val stepsPerMinute      = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
-        val activeBySteps       = stepsPerMinute > 30
-        val activeByAcc         = accelerometerMagnitude > WesadThresholds.ACC_MOVEMENT_THRESHOLD
-        // true = usuario en reposo → crisis posible
+        val stepsPerMinute       = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
+        val activeBySteps        = stepsPerMinute > 30
+        val activeByAcc          = accelerometerMagnitude > WesadThresholds.ACC_MOVEMENT_THRESHOLD
         val movementFilterPassed = !activeBySteps && !activeByAcc
 
-        // ── Decisión de ventana ───────────────────────────────────────────────
-        val windowPositive = (hrThresholdExceeded || hrvThresholdExceeded) && movementFilterPassed
-
-        if (windowPositive) {
-            consecutivePositiveWindows++
-        } else {
-            consecutivePositiveWindows = 0
-            // Actualizar baseline cuando el usuario está en calma
-            if (movementFilterPassed && meanHr < WesadThresholds.HR_THRESHOLD_BPM) {
-                updateBaseline(meanHr)
-            }
+        if (movementFilterPassed &&
+            calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
+            hrBaseline.add(meanHr)
+            hrvBaseline.add(rmssd)
+            calibrationWindows++
         }
 
-        val isCrisis = consecutivePositiveWindows >= WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
+        val zHr    = hrBaseline.zScore(meanHr)
+        val zRmssd = hrvBaseline.zScore(rmssd)
+
+        val hrThresholdExceeded  = zHr    >  WesadThresholds.SENSITIVITY_SIGMAS
+        val hrvThresholdExceeded = zRmssd < -WesadThresholds.SENSITIVITY_SIGMAS
+
+        val windowPositive = (hrThresholdExceeded || hrvThresholdExceeded) &&
+                movementFilterPassed
+
+        if (windowPositive) consecutivePositiveWindows++
+        else consecutivePositiveWindows = 0
+
+        val isCrisis = consecutivePositiveWindows >=
+                WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
 
         return DetectionResult(
             isCrisisDetected     = isCrisis,
@@ -88,10 +76,33 @@ class CrisisDetector {
     }
 
     fun resetConsecutiveCount() { consecutivePositiveWindows = 0 }
-    fun getBaselineHr(): Double? = userBaselineHr
+    fun getCalibrationStatus(): String =
+        "$calibrationWindows/${WesadThresholds.MIN_CALIBRATION_WINDOWS} ventanas calibradas"
+}
+/**
+ * Estadísticas incrementales (media y std) para Z-Score en tiempo real.
+ * Usa el algoritmo de Welford — no necesita guardar todas las muestras.
+ * Fallback a valores WESAD si no hay suficientes datos propios.
+ */
+class RunningStats(
+    private val fallbackMean: Double = 0.0,
+    private val fallbackStd: Double  = 1.0
+) {
+    private var count = 0
+    private var mean  = 0.0
+    private var m2    = 0.0
 
-    /** EMA con α=0.1 para adaptación gradual al baseline personal. */
-    private fun updateBaseline(currentHr: Double) {
-        userBaselineHr = userBaselineHr?.let { 0.9 * it + 0.1 * currentHr } ?: currentHr
+    fun add(value: Double) {
+        count++
+        val delta  = value - mean
+        mean      += delta / count
+        val delta2 = value - mean
+        m2        += delta * delta2
     }
+
+    fun std(): Double = if (count < 2) fallbackStd else sqrt(m2 / (count - 1))
+
+    fun zScore(value: Double): Double =
+        if (count < 2) (value - fallbackMean) / fallbackStd
+        else           (value - mean) / std()
 }
