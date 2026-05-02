@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -67,6 +68,10 @@ dependencies {
 
     // Para comunicarse con la app móvil
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    // Room Database
+    implementation("androidx.room:room-runtime:2.7.1")
+    implementation("androidx.room:room-ktx:2.7.1")
+    ksp("androidx.room:room-compiler:2.7.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

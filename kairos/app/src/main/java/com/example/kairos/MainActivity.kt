@@ -6,7 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.lifecycle.lifecycleScope
+import com.example.kairos.mobile.data.BaselineRepository
 import com.example.kairos.mobile.data.HealthConnectManager
+import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.mobile.detection.CrisisDetector
 import com.example.kairos.mobile.detection.KairosMonitorService
 import kotlinx.coroutines.launch
@@ -15,8 +17,9 @@ import java.time.Instant
 class MainActivity : ComponentActivity() {
 
     private lateinit var healthConnect: HealthConnectManager
-    private val detector    = CrisisDetector()  // datos reales del Pixel Watch
-    private val detectorSim = CrisisDetector()  // tests simulados — baseline separado
+    private lateinit var baselineRepo: BaselineRepository
+    private val detector    = CrisisDetector()
+    private val detectorSim = CrisisDetector()
 
     private val requestPermissions =
         registerForActivityResult(
@@ -33,6 +36,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(android.R.layout.simple_list_item_1)
+
+        // ── Inicializar Room y cargar baseline ────────────────────────────────
+        val db = KairosDatabase.getInstance(this)
+        baselineRepo = BaselineRepository(db.kairosDao())
+
+        lifecycleScope.launch {
+            detector.loadBaseline(baselineRepo)
+            Log.d("KAIROS", "Baseline cargado: ${detector.getCalibrationStatus()}")
+        }
 
         if (isEmulator()) {
             Log.d("KAIROS", "📱 Emulador detectado — corriendo test simulado")
@@ -74,7 +86,6 @@ class MainActivity : ComponentActivity() {
             Log.d("KAIROS", "Pasos reales del reloj: $steps")
             Log.d("KAIROS", "Muestras HR obtenidas: ${samples.size}")
 
-            // ── Datos reales si hay HR disponible ────────────────────────────
             if (samples.isNotEmpty()) {
                 Log.d("KAIROS", "── Test con datos REALES ──")
                 val result = detector.analyze(
@@ -92,11 +103,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ── Tests simulados Z-Score (siempre corren, detector separado) ──
+            // ── Tests simulados Z-Score ───────────────────────────────────────
             Log.d("KAIROS", "")
             Log.d("KAIROS", "── Tests simulados Z-Score (pasos reales: $steps) ──")
 
-            // Fase 1: calibración baseline
+            // Fase 1: calibración — usa detectorSim separado
             Log.d("KAIROS", "── Fase 1: Calibración ──")
             repeat(3) { v ->
                 val r = detectorSim.analyze(buildSamples(70L), stepsInWindow = 5L)
@@ -104,7 +115,11 @@ class MainActivity : ComponentActivity() {
                 Log.d("KAIROS", "  HR=${r?.averageHrBpm?.let { "%.1f".format(it) }} | RMSSD=${r?.rmssdMs?.let { "%.1f".format(it) }}")
             }
 
-            // Fase 2: ejercicio (falso positivo filtrado por ACC)
+            // Guardar baseline del test simulado en Room para validar persistencia
+            detectorSim.saveBaseline(baselineRepo)
+            Log.d("KAIROS", "✅ Baseline simulado guardado: ${detectorSim.getCalibrationStatus()}")
+
+            // Fase 2: ejercicio
             Log.d("KAIROS", "── Fase 2: Ejercicio ──")
             repeat(2) { v ->
                 val r = detectorSim.analyze(
@@ -118,7 +133,7 @@ class MainActivity : ComponentActivity() {
 
             detectorSim.resetConsecutiveCount()
 
-            // Fase 3: crisis real
+            // Fase 3: crisis
             Log.d("KAIROS", "── Fase 3: Crisis ──")
             repeat(3) { v ->
                 val r = detectorSim.analyze(
@@ -149,7 +164,7 @@ class MainActivity : ComponentActivity() {
         Log.d("KAIROS", "  TEST Z-SCORE — sin sensor real")
         Log.d("KAIROS", "========================================")
 
-        // Fase 1: calibración baseline
+        // Fase 1: calibración
         Log.d("KAIROS", "── Fase 1: Calibración baseline ──")
         repeat(3) { v ->
             val r = detectorSim.analyze(buildSamples(70L), stepsInWindow = 5L)
@@ -157,7 +172,13 @@ class MainActivity : ComponentActivity() {
             Log.d("KAIROS", "  HR=${r?.averageHrBpm?.let { "%.1f".format(it) }} | RMSSD=${r?.rmssdMs?.let { "%.1f".format(it) }}")
         }
 
-        // Fase 2: ejercicio (falso positivo)
+        // Guardar baseline del test simulado
+        lifecycleScope.launch {
+            detectorSim.saveBaseline(baselineRepo)
+            Log.d("KAIROS", "✅ Baseline simulado guardado: ${detectorSim.getCalibrationStatus()}")
+        }
+
+        // Fase 2: ejercicio
         Log.d("KAIROS", "── Fase 2: Ejercicio (falso positivo) ──")
         repeat(2) { v ->
             val r = detectorSim.analyze(
@@ -171,7 +192,7 @@ class MainActivity : ComponentActivity() {
 
         detectorSim.resetConsecutiveCount()
 
-        // Fase 3: crisis real
+        // Fase 3: crisis
         Log.d("KAIROS", "── Fase 3: Crisis real ──")
         repeat(3) { v ->
             val r = detectorSim.analyze(

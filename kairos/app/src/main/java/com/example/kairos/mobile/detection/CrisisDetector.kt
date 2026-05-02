@@ -1,20 +1,10 @@
 package com.example.kairos.mobile.detection
 
+import android.util.Log
 import androidx.health.connect.client.records.HeartRateRecord
+import com.example.kairos.mobile.data.BaselineRepository
 import kotlin.math.sqrt
 
-/**
- * Detector de crisis con método Z-Score individual.
- *
- * Cambio respecto a v1:
- *   En lugar de comparar HR y RMSSD contra umbrales fijos WESAD,
- *   calcula el Z-Score respecto al baseline PERSONAL del usuario.
- *   Detección = Z-Score > 2.5σ en HR o RMSSD, estando en reposo.
- *
- *   Esto resuelve el problema de variabilidad inter-sujeto:
- *   una HR de 85 bpm es normal para alguien activo pero alta para
- *   alguien sedentario. El Z-Score normaliza por persona.
- */
 class CrisisDetector {
 
     private var consecutivePositiveWindows = 0
@@ -78,19 +68,40 @@ class CrisisDetector {
     fun resetConsecutiveCount() { consecutivePositiveWindows = 0 }
     fun getCalibrationStatus(): String =
         "$calibrationWindows/${WesadThresholds.MIN_CALIBRATION_WINDOWS} ventanas calibradas"
+    fun isCalibrated(): Boolean =
+        calibrationWindows >= WesadThresholds.MIN_CALIBRATION_WINDOWS
+
+    suspend fun loadBaseline(repository: BaselineRepository) {
+        val stats = repository.load() ?: return
+        hrBaseline.restore(stats.hrCount, stats.hrMean, stats.hrM2)
+        hrvBaseline.restore(stats.hrvCount, stats.hrvMean, stats.hrvM2)
+        calibrationWindows = stats.calibrationWindows
+        Log.d("CrisisDetector", "Baseline restaurado: ${getCalibrationStatus()}")
+    }
+
+    suspend fun saveBaseline(repository: BaselineRepository) {
+        repository.save(
+            hrCount            = hrBaseline.count,
+            hrMean             = hrBaseline.mean,
+            hrM2               = hrBaseline.m2,
+            hrvCount           = hrvBaseline.count,
+            hrvMean            = hrvBaseline.mean,
+            hrvM2              = hrvBaseline.m2,
+            calibrationWindows = calibrationWindows
+        )
+    }
 }
-/**
- * Estadísticas incrementales (media y std) para Z-Score en tiempo real.
- * Usa el algoritmo de Welford — no necesita guardar todas las muestras.
- * Fallback a valores WESAD si no hay suficientes datos propios.
- */
+
 class RunningStats(
     private val fallbackMean: Double = 0.0,
     private val fallbackStd: Double  = 1.0
 ) {
-    private var count = 0
-    private var mean  = 0.0
-    private var m2    = 0.0
+    var count = 0
+        private set
+    var mean  = 0.0
+        private set
+    var m2    = 0.0
+        private set
 
     fun add(value: Double) {
         count++
@@ -98,6 +109,12 @@ class RunningStats(
         mean      += delta / count
         val delta2 = value - mean
         m2        += delta * delta2
+    }
+
+    fun restore(savedCount: Int, savedMean: Double, savedM2: Double) {
+        count = savedCount
+        mean  = savedMean
+        m2    = savedM2
     }
 
     fun std(): Double = if (count < 2) fallbackStd else sqrt(m2 / (count - 1))
