@@ -26,12 +26,17 @@
         android:theme="@style/Theme.Kairos">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.CalibrationActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
             </intent-filter>
@@ -41,6 +46,18 @@
             android:name="com.example.kairos.mobile.detection.KairosMonitorService"
             android:foregroundServiceType="health"
             android:exported="false"/>
+
+        <service
+            android:name=".mobile.KairosPhoneListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/kairos"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
 
     </application>
 

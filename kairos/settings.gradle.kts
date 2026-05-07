@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "kairos"
 include(":app")
+include(":wear")
