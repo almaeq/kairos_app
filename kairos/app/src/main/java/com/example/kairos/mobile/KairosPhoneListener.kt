@@ -21,34 +21,20 @@ class KairosPhoneListener : WearableListenerService() {
             "/kairos/ping" -> {
                 Log.d("KairosPhone", "✅ Ping recibido del reloj")
             }
+            "/kairos/crisis" -> {
+                val data = String(messageEvent.data)
+                Log.d("KairosPhone", "🚨 CRISIS recibida del reloj: $data")
+                // Acá va el SMS y la notificación
+            }
+            "/kairos/prealerta" -> {
+                val data = String(messageEvent.data)
+                Log.d("KairosPhone", "⚠️ Pre-alerta recibida: $data")
+                // Acá va la pantalla ¿Estás bien?
+            }
             "/kairos/hr" -> {
-                val bpm = String(messageEvent.data).toDoubleOrNull() ?: return
-                Log.d("KairosPhone", "HR recibida del reloj: $bpm BPM")
-
-                val db = KairosDatabase.getInstance(this)
-                val baselineRepo = BaselineRepository(db.kairosDao())
-
-                scope.launch {
-                    val detector = CrisisDetector()
-                    detector.loadBaseline(baselineRepo)
-
-                    val sample = HeartRateRecord.Sample(
-                        time = Instant.now(),
-                        beatsPerMinute = bpm.toLong()
-                    )
-
-                    val result = detector.analyze(
-                        hrSamples = listOf(sample),
-                        stepsInWindow = 0L,
-                        accelerometerMagnitude = 0.0
-                    )
-
-                    if (result?.isCrisisDetected == true) {
-                        Log.d("KairosPhone", "🚨 CRISIS DETECTADA — HR: $bpm BPM")
-                    } else {
-                        Log.d("KairosPhone", "Estado normal — HR: $bpm BPM | HR threshold: ${result?.hrThresholdExceeded}")
-                    }
-                }
+                // Solo para bitácora, no urgente
+                val bpm = String(messageEvent.data).toDoubleOrNull()
+                Log.d("KairosPhone", "HR para bitácora: $bpm BPM")
             }
         }
     }

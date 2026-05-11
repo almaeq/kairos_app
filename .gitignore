@@ -2,3 +2,8 @@ kairos-env/
 WESAD/
 archive.zip
 SSAQS dataset.zip
+.idea/*
+!.idea/codeStyles
+!.idea/inspectionProfiles
+kairos/.idea/
+dataset/*.pkl
