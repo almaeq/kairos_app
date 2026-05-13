@@ -8,20 +8,30 @@ import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.ui.WatchCrisisState
 import com.example.kairos.ui.WatchMonitorState
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class KairosPassiveListener : PassiveListenerService() {
 
+    // Scope propio ligado al ciclo de vida del servicio — no GlobalScope
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val hrBuffer = mutableListOf<Double>()
     private lateinit var detector: WatchCrisisDetector
+
+    private var windowStartMs = 0L
+    private val CALIBRATION_WINDOW_MS = 60_000L
+    private val MAX_BUFFER_SIZE = 80
 
     override fun onCreate() {
         super.onCreate()
         detector = WatchCrisisDetector.getInstance(this)
-        Log.d("KairosWatch", "KairosPassiveListener creado — cal: ${detector.calibrationWindows}/3")
+        windowStartMs = System.currentTimeMillis()
+        Log.d("KairosPassive", "Listener creado — cal: ${detector.calibrationWindows}/3")
     }
 
     override fun onNewDataPointsReceived(dataPoints: DataPointContainer) {
@@ -29,13 +39,32 @@ class KairosPassiveListener : PassiveListenerService() {
         if (hrData.isEmpty()) return
 
         hrData.forEach { hrBuffer.add(it.value) }
-        Log.d("KairosWatch", "Buffer HR: ${hrBuffer.size} muestras")
+
+        while (hrBuffer.size > MAX_BUFFER_SIZE) hrBuffer.removeAt(0)
+
+        Log.d("KairosPassive", "HR: ${hrData.last().value} BPM — buffer: ${hrBuffer.size}")
 
         if (hrBuffer.size < 6) return
 
+        val now = System.currentTimeMillis()
+        val elapsedMs = now - windowStartMs
+
+        if (!detector.isCalibrated()) {
+            val remainingSecs = ((CALIBRATION_WINDOW_MS - elapsedMs) / 1000).coerceAtLeast(0)
+            Log.d("KairosPassive", "Calibrando ${detector.calibrationWindows + 1}/3 — faltan ${remainingSecs}s")
+            if (elapsedMs < CALIBRATION_WINDOW_MS) return
+            windowStartMs = now
+        }
+
         val result = detector.analyze(hrBuffer.toList()) ?: return
 
-        // Actualizar UI del reloj
+        if (!detector.isCalibrated()) {
+            hrBuffer.clear()
+        } else {
+            val keepFrom = hrBuffer.size / 2
+            repeat(keepFrom) { if (hrBuffer.isNotEmpty()) hrBuffer.removeAt(0) }
+        }
+
         WatchMonitorState.update(
             heartRate          = result.averageHrBpm,
             rmssd              = result.rmssdMs,
@@ -49,24 +78,29 @@ class KairosPassiveListener : PassiveListenerService() {
 
         when {
             result.isCrisisDetected -> {
-                Log.d("KairosWatch", "🚨 CRISIS DETECTADA en reloj")
-                sendToPhone("/kairos/crisis", "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
+                Log.d("KairosPassive", "🚨 CRISIS detectada en background")
+                sendToPhone("/kairos/crisis",
+                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
             }
             result.isPreAlert -> {
-                Log.d("KairosWatch", "⚠️ PRE-ALERTA en reloj")
+                Log.d("KairosPassive", "⚠️ PRE-ALERTA en background")
                 sendToPhone("/kairos/prealerta", "hr=${result.averageHrBpm}")
             }
             else -> {
-                Log.d("KairosWatch", "✅ Normal — HR=${result.averageHrBpm} RMSSD=${result.rmssdMs}")
+                // En background el PassiveListener recibe datos con menor frecuencia,
+                // así que cada ciclo normal ya funciona como heartbeat al celular
+                sendToPhone(
+                    "/kairos/heartbeat",
+                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}"
+                )
+                Log.d("KairosPassive", "✅ Normal — HR=${"%.1f".format(result.averageHrBpm)} " +
+                        "RMSSD=${"%.1f".format(result.rmssdMs)}")
             }
         }
-
-        // Ventana deslizante
-        repeat(3) { if (hrBuffer.isNotEmpty()) hrBuffer.removeAt(0) }
     }
 
     private fun sendToPhone(path: String, data: String) {
-        GlobalScope.launch(Dispatchers.IO) {
+        scope.launch {
             try {
                 val nodes = Wearable.getNodeClient(this@KairosPassiveListener)
                     .connectedNodes.await()
@@ -74,11 +108,16 @@ class KairosPassiveListener : PassiveListenerService() {
                     Wearable.getMessageClient(this@KairosPassiveListener)
                         .sendMessage(node.id, path, data.toByteArray())
                         .await()
-                    Log.d("KairosWatch", "Enviado $path → ${node.displayName}")
+                    Log.d("KairosPassive", "Enviado $path → ${node.displayName}")
                 }
             } catch (e: Exception) {
-                Log.e("KairosWatch", "Error enviando $path: ${e.message}")
+                Log.e("KairosPassive", "Error enviando $path: ${e.message}")
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
     }
 }

@@ -710,3 +710,70 @@ The library author recommends using versions:
 2026-05-06 23:58:06,119 [13924741]   WARN - #com.android.adblib.ConnectedDevice - Suppressed a frequent exception logged for the 10th time: 'device offline' error on device serial #192.168.201.50:36613 executing service '(host:transport:192.168.201.50:36613)track-app'
 2026-05-06 23:58:16,139 [13934761]   WARN - #com.android.adblib.ConnectedDevice - Suppressed a frequent exception logged for the 20th time: 'device offline' error on device serial #192.168.201.50:36613 executing service '(host:transport:192.168.201.50:36613)track-app'
 2026-05-06 23:58:46,196 [13964818]   WARN - #com.android.adblib.ConnectedDevice - Suppressed a frequent exception logged for the 50th time: 'device offline' error on device serial #192.168.201.50:36613 executing service '(host:transport:192.168.201.50:36613)track-app'
+2026-05-13 08:48:56,494 [    756]   WARN - #c.i.m.l.t.AIAssistantTelemetryExporterKt - No Langfuse auth string found.
+2026-05-13 08:48:56,711 [    973]   WARN - #c.i.o.v.n.p.m.c.VFSContentStorageOverMMappedFile - Content map[/home/alma/.cache/JetBrains/IntelliJIdea2025.3/caches/content.dat.hashToId] is empty (or dropped) while content storage is not: re-building map from the storage
+2026-05-13 08:48:56,712 [    974]   WARN - #c.i.o.v.n.p.FSRecords - Records storage [/home/alma/.cache/JetBrains/IntelliJIdea2025.3/caches/records.dat] was in use by process [OwnershipInfo{owner pid: 59698, acquired at: 1778503048679}] which is not exist now (wasn't closed properly/crashed?) -> re-acquiring forcibly
+2026-05-13 08:48:56,727 [    989]   WARN - c.i.o.u.r.overrides - Conflicting registry key definition for key completion.cloud.enableCompletionInCommitMessage: it was defined by plugin org.jetbrains.completion.full.line but redefined by plugin org.jetbrains.completion.full.line. Consider adding overrides="true" for one of the plugins, see the documentation for com.intellij.openapi.util.registry.RegistryKeyBean.overrides for more details.
+2026-05-13 08:48:56,754 [   1016]   WARN - #c.i.o.v.n.p.PersistentFSLoader - [VFS load problem]: VFS wasn't safely shut down: records.wasClosedProperly is false
+2026-05-13 08:48:56,960 [   1222]   WARN - #c.i.s.c.i.StationSocketConnectionLoop - Discovery connection failed with NoSuchFileException (/run/user/1000/jb.station.sock)
+2026-05-13 08:48:57,243 [   1505]   WARN - #c.i.o.e.c.i.EditorColorsManagerImpl - resource not found: colorSchemes/SqlDefault.xml
+2026-05-13 08:48:57,245 [   1507]   WARN - #c.i.o.e.c.i.EditorColorsManagerImpl - resource not found: colorSchemes/sassDefault.xml
+2026-05-13 08:48:57,272 [   1534]   WARN - #c.i.o.e.c.i.EditorColorsManagerImpl - resource not found: colorSchemes/SqlDarcula.xml
+2026-05-13 08:48:57,881 [   2143]   WARN - #c.i.o.v.n.p.PersistentFSLoader - [VFS load problem]: NOT_CLOSED_PROPERLY recovered, no problems remain
+2026-05-13 08:48:59,471 [   3733]   WARN - #c.i.o.w.i.h.MainMenuWithButton - Invisible items count mismatch: expandableMenuItemCount = 0,  menuItemCount = 11, invisibleItems is empty = true. Run update menu actions.
+2026-05-13 08:49:09,053 [  13315]   WARN - #c.i.o.a.i.ActionUpdater - 4779 ms total to grab EDT 2 times to expand EditorMarkupModelImpl$StatusToolbarGroup#expandGroup@EditorInspectionsToolbar (com.intellij.openapi.editor.impl.EditorMarkupModelImpl$StatusToolbarGroup). Use `ActionUpdateThread.BGT`.
+2026-05-13 08:49:09,838 [  14100]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,842 [  14104]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,843 [  14105]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,843 [  14105]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,843 [  14105]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,844 [  14106]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:09,844 [  14106]   WARN - #com.github.weisj.jsvg.parser.NodeMap - unsupported foreignObject
+2026-05-13 08:49:10,745 [  15007]   WARN - #c.i.s.c.i.StationSocketConnectionLoop - RecentProjects connection failed with NoSuchFileException (/run/user/1000/jb.station.sock)
+2026-05-13 08:49:10,762 [  15024]   WARN - #c.i.s.c.i.StationSocketConnectionLoop - /mcp-servers connection failed with NoSuchFileException (/run/user/1000/jb.station.sock)
+2026-05-13 08:49:10,903 [  15165]   WARN - #c.i.v.l.u.StorageId$Directory - Failed to move /home/alma/.cache/JetBrains/IntelliJIdea2025.3/vcs-log/SAUCE_c_677d8b88_f52884c/index to /home/alma/.cache/JetBrains/IntelliJIdea2025.3/vcs-log/SAUCE_c_677d8b88_f52884c/index
+java.nio.file.NoSuchFileException: /home/alma/.cache/JetBrains/IntelliJIdea2025.3/vcs-log/SAUCE_c_677d8b88_f52884c/index
+	at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:94)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:108)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:114)
+	at java.base/sun.nio.fs.UnixFileSystem.move(UnixFileSystem.java:892)
+	at java.base/sun.nio.fs.UnixFileSystemProvider.move(UnixFileSystemProvider.java:309)
+	at com.intellij.platform.core.nio.fs.TracingFileSystemProvider.move(TracingFileSystemProvider.java:164)
+	at java.base/java.nio.file.Files.move(Files.java:1431)
+	at com.intellij.vcs.log.util.StorageId.cleanupAllStorageFiles(PersistentUtil.kt:58)
+	at com.intellij.vcs.log.data.VcsLogStorageImpl.cleanupStorageFiles(VcsLogStorageImpl.java:381)
+	at com.intellij.vcs.log.data.VcsLogStorageImpl.lambda$createStorageAndIndexBackend$4(VcsLogStorageImpl.java:374)
+	at com.intellij.util.io.IOUtil.openCleanOrResetBroken(IOUtil.java:310)
+	at com.intellij.vcs.log.data.VcsLogStorageImpl.createStorageAndIndexBackend(VcsLogStorageImpl.java:359)
+	at com.intellij.vcs.log.data.VcsLogData.createStorageAndIndex(VcsLogData.kt:324)
+	at com.intellij.vcs.log.data.VcsLogData.<init>(VcsLogData.kt:144)
+	at com.intellij.vcs.log.impl.VcsLogManager.<init>(VcsLogManager.kt:63)
+	at com.intellij.vcs.log.impl.IdeVcsLogManager.<init>(IdeVcsLogManager.kt:26)
+	at com.intellij.vcs.log.impl.IdeVcsProjectLog.createLogManager(IdeVcsProjectLog.kt:52)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase.getOrCreateLogManager(VcsProjectLogBase.kt:202)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase.access$getOrCreateLogManager(VcsProjectLogBase.kt:46)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase$getOrCreateLogManager$2.invokeSuspend(VcsProjectLogBase.kt:189)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase$getOrCreateLogManager$2.invoke(VcsProjectLogBase.kt)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase$getOrCreateLogManager$2.invoke(VcsProjectLogBase.kt)
+	at com.intellij.platform.backend.observation.PlatformActivityTrackerService$trackConfigurationActivity$2$1.invokeSuspend(PlatformActivityTrackerService.kt:72)
+	at com.intellij.platform.backend.observation.PlatformActivityTrackerService$trackConfigurationActivity$2$1.invoke(PlatformActivityTrackerService.kt)
+	at com.intellij.platform.backend.observation.PlatformActivityTrackerService$trackConfigurationActivity$2$1.invoke(PlatformActivityTrackerService.kt)
+	at kotlinx.coroutines.intrinsics.UndispatchedKt.startUndispatchedOrReturn(Undispatched.kt:44)
+	at kotlinx.coroutines.BuildersKt__Builders_commonKt.withContext(Builders.common.kt:166)
+	at kotlinx.coroutines.BuildersKt.withContext(Unknown Source)
+	at com.intellij.platform.backend.observation.PlatformActivityTrackerService.trackConfigurationActivity(PlatformActivityTrackerService.kt:71)
+	at com.intellij.platform.backend.observation.TrackingUtil.trackActivity(util.kt:23)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase.getOrCreateLogManager(VcsProjectLogBase.kt:188)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase.access$getOrCreateLogManager(VcsProjectLogBase.kt:46)
+	at com.intellij.vcs.log.impl.VcsProjectLogBase$initAsync$1.invokeSuspend(VcsProjectLogBase.kt:140)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:610)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runDefaultDispatcherTask(CoroutineScheduler.kt:1194)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:906)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:775)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:762)
+2026-05-13 08:49:14,736 [  18998]   WARN - #c.i.s.SpellCheckerManager - Couldn't load dictionary vue.dic with loader 'class org.jetbrains.vuejs.spellchecker.VueSpellcheckingDictionaryProvider'
+2026-05-13 08:58:47,691 [ 591953]   WARN - #c.i.o.a.ExperimentalFeatureImpl - Feature 'ml.llm.ask.ai' is disabled in Release. Set 'percentOfUsers' to 100% to enable in Release.
+2026-05-13 08:58:57,222 [ 601484]   WARN - #c.i.m.l.c.c.u.AIAssistantUIUtil - quota and refill values are returned as null by platform, refill: null, quota: null
+2026-05-13 08:58:57,222 [ 601484]   WARN - #c.i.m.l.c.c.u.AIAssistantUIUtil - getQuotaUiLabelData returning unknown

@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
 import com.example.kairos.detection.WatchCrisisDetector
@@ -28,10 +29,9 @@ class KairosWatchService : Service() {
     companion object {
         var isRunning = false
         const val ACTION_RESET_WINDOW = "com.example.kairos.RESET_WINDOW"
-
-        // 60s de ventana. El reloj entrega ~1 muestra/s → máximo ~80 muestras por ventana
         private const val CALIBRATION_WINDOW_MS = 60_000L
         private const val MAX_BUFFER_SIZE = 80
+        private const val HEARTBEAT_INTERVAL_MS = 60_000L  // update al celular cada 60s
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -52,6 +52,7 @@ class KairosWatchService : Service() {
         Log.d("KairosWatch", "Servicio iniciado")
         startForeground(1, buildNotification())
         startExerciseMonitoring()
+        startHeartbeat()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,6 +62,23 @@ class KairosWatchService : Service() {
             Log.d("KairosWatch", "Ventana reseteada — recalibrando desde 0s")
         }
         return START_STICKY
+    }
+
+    // Cada 60s manda el estado actual al celular aunque no haya crisis
+    private fun startHeartbeat() {
+        scope.launch {
+            while (true) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                val state = WatchMonitorState.state.value
+                if (state.heartRate > 0) {
+                    sendToPhone(
+                        "/kairos/heartbeat",
+                        "hr=${state.heartRate},rmssd=${state.rmssd},cal=${state.calibrationWindows}"
+                    )
+                    Log.d("KairosWatch", "Heartbeat enviado al celular")
+                }
+            }
+        }
     }
 
     private fun startExerciseMonitoring() {
@@ -94,21 +112,13 @@ class KairosWatchService : Service() {
                             val hrData = update.latestMetrics.getData(DataType.HEART_RATE_BPM)
                             if (hrData.isNotEmpty()) {
                                 hrData.forEach { hrBuffer.add(it.value) }
-
-                                // Evitar que el buffer crezca indefinidamente:
-                                // si supera el máximo, descartar las muestras más viejas
-                                while (hrBuffer.size > MAX_BUFFER_SIZE) {
-                                    hrBuffer.removeAt(0)
-                                }
-
+                                while (hrBuffer.size > MAX_BUFFER_SIZE) hrBuffer.removeAt(0)
                                 Log.d("KairosWatch", "HR: ${hrData.last().value} BPM — buffer: ${hrBuffer.size}")
                                 processBuffer()
                             }
                         }
                         override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) {}
-                        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
-                            Log.d("KairosWatch", "Disponibilidad HR: $availability")
-                        }
+                        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {}
                         override fun onRegistered() {
                             Log.d("KairosWatch", "ExerciseUpdateCallback registrado ✅")
                         }
@@ -138,20 +148,13 @@ class KairosWatchService : Service() {
             val remainingSecs = ((CALIBRATION_WINDOW_MS - elapsedMs) / 1000).coerceAtLeast(0)
             Log.d("KairosWatch", "Calibrando ventana ${detector.calibrationWindows + 1}/3 " +
                     "— faltan ${remainingSecs}s — muestras: ${hrBuffer.size}")
-
             if (elapsedMs < CALIBRATION_WINDOW_MS) return
-
-            // Pasaron 60s: analizar y limpiar el buffer para la siguiente ventana
-            Log.d("KairosWatch", "Ventana ${detector.calibrationWindows + 1} completada " +
-                    "con ${hrBuffer.size} muestras")
             windowStartMs = now
+            Log.d("KairosWatch", "Ventana ${detector.calibrationWindows + 1} completada")
         }
 
         val result = detector.analyze(hrBuffer.toList()) ?: return
 
-        // Limpiar el buffer después de cada análisis:
-        // - Durante calibración: vaciado completo (cada ventana es independiente)
-        // - Post-calibración: ventana deslizante, conservar la mitad más reciente
         if (!detector.isCalibrated()) {
             hrBuffer.clear()
         } else {
@@ -173,7 +176,8 @@ class KairosWatchService : Service() {
         when {
             result.isCrisisDetected -> {
                 Log.d("KairosWatch", "🚨 CRISIS — HR=${result.averageHrBpm} RMSSD=${result.rmssdMs}")
-                sendToPhone("/kairos/crisis", "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
+                sendToPhone("/kairos/crisis",
+                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
             }
             result.isPreAlert -> {
                 Log.d("KairosWatch", "⚠️ PRE-ALERTA — HR=${result.averageHrBpm}")
@@ -181,8 +185,7 @@ class KairosWatchService : Service() {
             }
             else -> {
                 Log.d("KairosWatch", "✅ Normal — HR=${"%.1f".format(result.averageHrBpm)} " +
-                        "RMSSD=${"%.1f".format(result.rmssdMs)} " +
-                        "zHR=${"%.2f".format(result.averageHrBpm)} buffer: ${hrBuffer.size}")
+                        "RMSSD=${"%.1f".format(result.rmssdMs)} buffer: ${hrBuffer.size}")
             }
         }
     }
@@ -227,8 +230,8 @@ class KairosWatchService : Service() {
         val channel = NotificationChannel(channelId, "KAIROS Monitor", NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         return Notification.Builder(this, channelId)
-            .setContentTitle("KAIROS")
-            .setContentText("Monitoreando frecuencia cardíaca")
+            .setContentTitle("KAIROS activo")
+            .setContentText("Monitoreando en segundo plano")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .build()
     }

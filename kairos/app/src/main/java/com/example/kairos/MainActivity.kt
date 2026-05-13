@@ -28,10 +28,9 @@ import androidx.lifecycle.lifecycleScope
 import com.example.kairos.mobile.CrisisState
 import com.example.kairos.mobile.MonitorState
 import com.example.kairos.mobile.data.BaselineRepository
-import com.example.kairos.mobile.data.HealthConnectManager
 import com.example.kairos.mobile.data.db.KairosDatabase
-import com.example.kairos.mobile.detection.KairosMonitorService
 import com.example.kairos.ui.CalibrationActivity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -39,32 +38,33 @@ class MainActivity : ComponentActivity() {
     private lateinit var baselineRepo: BaselineRepository
 
     private val requestPermissions =
-        registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions()
-        ) { grants ->
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             if (grants.values.all { it }) {
-                Log.d("KAIROS", "✅ Permisos otorgados")
-                startMonitoring()
+                Log.d("KAIROS", "Permisos otorgados")
             } else {
-                Log.e("KAIROS", "❌ Permisos denegados")
+                Log.e("KAIROS", "Permisos denegados")
             }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         val db = KairosDatabase.getInstance(this)
-        baselineRepo = BaselineRepository(db.kairosDao())
+        baselineRepo = BaselineRepository(db.kairosDao(), this)
 
+        // Pre-cargar el estado de calibración desde Room al arrancar,
+        // sin esperar el primer heartbeat del reloj (que puede tardar 60s)
         lifecycleScope.launch {
-            val isCalibrated = db.kairosDao().getBaseline() != null
-            Log.d("KAIROS", "Calibrado: $isCalibrated")
+            val baseline = db.kairosDao().getBaseline()
+            if (baseline != null) {
+                Log.d("KAIROS", "Baseline local encontrado — cal: ${baseline.calibrationWindows}/3")
+                MonitorState.preloadCalibration(baseline.calibrationWindows)
+            } else {
+                Log.d("KAIROS", "Sin baseline local — esperando calibración")
+            }
         }
 
         setContent {
-            MonitorScreen(
-                onRecalibrate = { recalibrate() }
-            )
+            MonitorScreen(onRecalibrate = { recalibrate() })
         }
     }
 
@@ -74,27 +74,30 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(this@MainActivity, CalibrationActivity::class.java))
         }
     }
-
-    private fun startMonitoring() {
-        //KairosMonitorService.start(this)
-        Log.d("KAIROS", "✅ Monitoreo iniciado")
-    }
 }
 
 @Composable
-fun MonitorScreen(
-    onRecalibrate: () -> Unit = {}
-) {
+fun MonitorScreen(onRecalibrate: () -> Unit = {}) {
     val monitorData by MonitorState.data.collectAsState()
 
-    val BackgroundDark  = Color(0xFF0A0E1A)
-    val CardDark        = Color(0xFF111827)
-    val KairosGreen     = Color(0xFF00E5A0)
-    val KairosBlue      = Color(0xFF3B82F6)
-    val KairosOrange    = Color(0xFFF59E0B)
-    val KairosRed       = Color(0xFFEF4444)
-    val TextPrimary     = Color(0xFFE2E8F0)
-    val TextSecondary   = Color(0xFF64748B)
+    var tickerSeconds by remember { mutableStateOf(0) }
+    LaunchedEffect(monitorData.lastUpdated) {
+        while (true) {
+            delay(1_000)
+            tickerSeconds = if (monitorData.lastUpdated > 0)
+                ((System.currentTimeMillis() - monitorData.lastUpdated) / 1000).toInt()
+            else 0
+        }
+    }
+
+    val BackgroundDark = Color(0xFF0A0E1A)
+    val CardDark       = Color(0xFF111827)
+    val KairosGreen    = Color(0xFF00E5A0)
+    val KairosBlue     = Color(0xFF3B82F6)
+    val KairosOrange   = Color(0xFFF59E0B)
+    val KairosRed      = Color(0xFFEF4444)
+    val TextPrimary    = Color(0xFFE2E8F0)
+    val TextSecondary  = Color(0xFF64748B)
 
     val stateColor by animateColorAsState(
         targetValue = when (monitorData.crisisState) {
@@ -120,188 +123,121 @@ fun MonitorScreen(
         label = "pulseScale"
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundDark)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Header
-            Text(
-                text = "KAIROS",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = stateColor,
-                letterSpacing = 6.sp
-            )
-            Text(
-                text = "The Right Time",
-                fontSize = 12.sp,
-                color = TextSecondary,
-                letterSpacing = 2.sp
-            )
+            Text("KAIROS", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                color = stateColor, letterSpacing = 6.sp)
+            Text("The Right Time", fontSize = 12.sp, color = TextSecondary, letterSpacing = 2.sp)
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Círculo HR central
             Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(180.dp)
-                        .scale(pulseScale)
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    stateColor.copy(alpha = 0.15f),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = CircleShape
-                        )
-                )
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .background(
-                            color = stateColor.copy(alpha = 0.08f),
-                            shape = CircleShape
-                        )
-                )
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .background(color = CardDark, shape = CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.size(180.dp).scale(pulseScale).background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(stateColor.copy(alpha = 0.15f), Color.Transparent)
+                    ), shape = CircleShape))
+                Box(modifier = Modifier.size(150.dp).background(
+                    color = stateColor.copy(alpha = 0.08f), shape = CircleShape))
+                Box(modifier = Modifier.size(120.dp).background(
+                    color = CardDark, shape = CircleShape),
+                    contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = if (monitorData.heartRate > 0)
                                 "%.0f".format(monitorData.heartRate) else "—",
-                            fontSize = 42.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontSize = 42.sp, fontWeight = FontWeight.Bold, color = TextPrimary
                         )
-                        Text(
-                            text = "BPM",
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            letterSpacing = 2.sp
-                        )
+                        Text("BPM", fontSize = 12.sp, color = TextSecondary, letterSpacing = 2.sp)
                     }
                 }
             }
 
-            // Estado
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(stateColor.copy(alpha = 0.15f))
-                    .padding(horizontal = 24.dp, vertical = 10.dp)
-            ) {
+            Box(modifier = Modifier.clip(RoundedCornerShape(50))
+                .background(stateColor.copy(alpha = 0.15f))
+                .padding(horizontal = 24.dp, vertical = 10.dp)) {
                 Text(
                     text = when (monitorData.crisisState) {
                         CrisisState.NORMAL    -> "● Normal"
                         CrisisState.PRE_ALERT -> "● Estrés elevado"
                         CrisisState.CRISIS    -> "● Crisis detectada"
                     },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = stateColor
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = stateColor
                 )
             }
 
-            // Cards de métricas
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "RMSSD",
-                    value = if (monitorData.rmssd > 0)
-                        "%.1f ms".format(monitorData.rmssd) else "—",
-                    color = KairosBlue,
-                    cardColor = CardDark
-                )
-                MetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "Calibración",
-                    value = "${monitorData.calibrationWindows}/3",
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MetricCard(modifier = Modifier.weight(1f), label = "RMSSD",
+                    value = if (monitorData.rmssd > 0) "%.1f ms".format(monitorData.rmssd) else "—",
+                    color = KairosBlue, cardColor = CardDark)
+                MetricCard(modifier = Modifier.weight(1f), label = "Calibración",
+                    value = if (monitorData.isCalibrated) "✓" else "${monitorData.calibrationWindows}/3",
                     color = if (monitorData.isCalibrated) KairosGreen else KairosOrange,
-                    cardColor = CardDark
-                )
+                    cardColor = CardDark)
             }
 
-            // Aviso de calibración pendiente
             if (!monitorData.isCalibrated) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(KairosOrange.copy(alpha = 0.1f))
-                        .padding(16.dp)
-                ) {
+                Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(KairosOrange.copy(alpha = 0.1f)).padding(16.dp)) {
                     Text(
                         text = "Calibrando perfil fisiológico...\nUsá el reloj un momento.",
-                        fontSize = 13.sp,
-                        color = KairosOrange,
-                        textAlign = TextAlign.Center,
+                        fontSize = 13.sp, color = KairosOrange, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
-            // Aviso de crisis
             if (monitorData.crisisState == CrisisState.CRISIS) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(KairosRed.copy(alpha = 0.15f))
-                        .padding(16.dp)
-                ) {
+                Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(KairosRed.copy(alpha = 0.15f)).padding(16.dp)) {
                     Text(
                         text = "🚨 Crisis detectada\nSe están activando los protocolos de apoyo.",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = KairosRed,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = KairosRed,
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
-            // Última actualización
-            if (monitorData.lastUpdated > 0) {
-                val segundos = ((System.currentTimeMillis() - monitorData.lastUpdated) / 1000).toInt()
-                Text(
-                    text = "Última lectura: hace ${segundos}s",
-                    fontSize = 11.sp,
-                    color = TextSecondary
-                )
-            }
-
-            // Empuja el botón al fondo
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Botón de recalibrar
-            TextButton(
-                onClick = onRecalibrate,
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "↺  Recalibrar baseline",
-                    fontSize = 13.sp,
-                    color = TextSecondary
+                    text = if (monitorData.watchConnected) "⌚ Reloj conectado"
+                    else "⌚ Reloj desconectado",
+                    fontSize = 11.sp,
+                    color = if (monitorData.watchConnected) KairosGreen.copy(alpha = 0.7f)
+                    else TextSecondary
                 )
+                if (monitorData.lastUpdated > 0) {
+                    Text(
+                        text = when {
+                            tickerSeconds < 60  -> "Último dato: hace ${tickerSeconds}s"
+                            tickerSeconds < 120 -> "Último dato: hace 1 min"
+                            else                -> "Último dato: hace ${tickerSeconds / 60} min"
+                        },
+                        fontSize = 11.sp,
+                        color = when {
+                            tickerSeconds < 90  -> TextSecondary
+                            tickerSeconds < 180 -> KairosOrange
+                            else                -> KairosRed.copy(alpha = 0.7f)
+                        }
+                    )
+                } else {
+                    Text("Esperando datos del reloj...", fontSize = 11.sp, color = TextSecondary)
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
+                Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -312,24 +248,15 @@ fun MonitorScreen(
 @Composable
 fun MetricCard(
     modifier: Modifier = Modifier,
-    label: String,
-    value: String,
-    color: Color,
-    cardColor: Color
+    label: String, value: String, color: Color, cardColor: Color
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(cardColor)
-            .padding(16.dp)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(text = label, fontSize = 11.sp, color = Color(0xFF64748B), letterSpacing = 1.sp)
+    Box(modifier = modifier.clip(RoundedCornerShape(16.dp))
+        .background(cardColor).padding(16.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()) {
+            Text(label, fontSize = 11.sp, color = Color(0xFF64748B), letterSpacing = 1.sp)
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)
         }
     }
 }
