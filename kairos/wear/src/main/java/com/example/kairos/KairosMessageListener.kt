@@ -2,6 +2,7 @@ package com.example.kairos
 
 import android.content.Intent
 import android.util.Log
+import com.example.kairos.db.WatchBaseline
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 
@@ -23,6 +24,10 @@ class KairosMessageListener : WearableListenerService() {
             "/kairos/stop" -> {
                 Log.d("KairosWatch", "Comando recibido: detener monitoreo")
                 stopService(Intent(this, KairosWatchService::class.java))
+            }
+            "/kairos/reset_baseline" -> {
+                Log.d("KairosWatch", "Comando recibido: borrar baseline del reloj")
+                WatchBaseline.clear(this)
             }
         }
     }

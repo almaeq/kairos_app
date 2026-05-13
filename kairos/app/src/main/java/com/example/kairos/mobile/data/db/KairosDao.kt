@@ -32,4 +32,7 @@ interface KairosDao {
 
     @Delete
     suspend fun deleteContact(contact: TrustedContact)
+
+    @Query("DELETE FROM baseline_stats")
+    suspend fun deleteBaseline()
 }

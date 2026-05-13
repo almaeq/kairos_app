@@ -5,6 +5,8 @@ import androidx.health.services.client.PassiveListenerService
 import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
 import com.example.kairos.detection.WatchCrisisDetector
+import com.example.kairos.ui.WatchCrisisState
+import com.example.kairos.ui.WatchMonitorState
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -18,7 +20,6 @@ class KairosPassiveListener : PassiveListenerService() {
 
     override fun onCreate() {
         super.onCreate()
-        // Usar singleton en vez de nueva instancia
         detector = WatchCrisisDetector.getInstance(this)
         Log.d("KairosWatch", "KairosPassiveListener creado — cal: ${detector.calibrationWindows}/3")
     }
@@ -27,35 +28,41 @@ class KairosPassiveListener : PassiveListenerService() {
         val hrData = dataPoints.getData(DataType.HEART_RATE_BPM)
         if (hrData.isEmpty()) return
 
-        // Agregar todas las muestras al buffer
         hrData.forEach { hrBuffer.add(it.value) }
         Log.d("KairosWatch", "Buffer HR: ${hrBuffer.size} muestras")
 
-        // Analizar cuando tengamos suficientes muestras (~60s de datos)
-        if (hrBuffer.size >= 6) {
-            val result = detector.analyze(hrBuffer.toList())
+        if (hrBuffer.size < 6) return
 
-            if (result != null) {
-                when {
-                    result.isCrisisDetected -> {
-                        Log.d("KairosWatch", "🚨 CRISIS DETECTADA en reloj")
-                        sendToPhone("/kairos/crisis",
-                            "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
-                    }
-                    result.isPreAlert -> {
-                        Log.d("KairosWatch", "⚠️ PRE-ALERTA en reloj")
-                        sendToPhone("/kairos/prealerta",
-                            "hr=${result.averageHrBpm}")
-                    }
-                    else -> {
-                        Log.d("KairosWatch", "✅ Normal — HR=${result.averageHrBpm} RMSSD=${result.rmssdMs}")
-                    }
-                }
+        val result = detector.analyze(hrBuffer.toList()) ?: return
 
-                // Ventana deslizante — descartar primeras 3 muestras
-                repeat(3) { if (hrBuffer.isNotEmpty()) hrBuffer.removeFirst() }
+        // Actualizar UI del reloj
+        WatchMonitorState.update(
+            heartRate          = result.averageHrBpm,
+            rmssd              = result.rmssdMs,
+            crisisState        = when {
+                result.isCrisisDetected -> WatchCrisisState.CRISIS
+                result.isPreAlert       -> WatchCrisisState.PRE_ALERT
+                else                    -> WatchCrisisState.NORMAL
+            },
+            calibrationWindows = result.calibrationWindows
+        )
+
+        when {
+            result.isCrisisDetected -> {
+                Log.d("KairosWatch", "🚨 CRISIS DETECTADA en reloj")
+                sendToPhone("/kairos/crisis", "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
+            }
+            result.isPreAlert -> {
+                Log.d("KairosWatch", "⚠️ PRE-ALERTA en reloj")
+                sendToPhone("/kairos/prealerta", "hr=${result.averageHrBpm}")
+            }
+            else -> {
+                Log.d("KairosWatch", "✅ Normal — HR=${result.averageHrBpm} RMSSD=${result.rmssdMs}")
             }
         }
+
+        // Ventana deslizante
+        repeat(3) { if (hrBuffer.isNotEmpty()) hrBuffer.removeAt(0) }
     }
 
     private fun sendToPhone(path: String, data: String) {

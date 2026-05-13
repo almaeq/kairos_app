@@ -8,11 +8,11 @@ class WatchCrisisDetector(private val context: Context) {
 
     private var consecutivePositiveWindows = 0
 
-    private val hrBaseline = RunningStats(
+    private var hrBaseline = RunningStats(
         fallbackMean = WesadThresholds.HR_BASELINE_MEAN,
         fallbackStd  = WesadThresholds.HR_BASELINE_STD
     )
-    private val hrvBaseline = RunningStats(
+    private var hrvBaseline = RunningStats(
         fallbackMean = WesadThresholds.HRV_RMSSD_BASELINE_MEAN,
         fallbackStd  = WesadThresholds.HRV_RMSSD_BASELINE_STD
     )
@@ -30,7 +30,6 @@ class WatchCrisisDetector(private val context: Context) {
         val stepsPerMinute       = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
         val movementFilterPassed = stepsPerMinute <= 30
 
-        // Calibración automática con las primeras ventanas en reposo
         if (movementFilterPassed &&
             calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
             hrBaseline.add(meanHr)
@@ -59,18 +58,37 @@ class WatchCrisisDetector(private val context: Context) {
                 "crisis=$isCrisis consec=$consecutivePositiveWindows")
 
         return WatchDetectionResult(
-            isCrisisDetected    = isCrisis,
-            isPreAlert          = windowPositive && !isCrisis,
-            averageHrBpm        = meanHr,
-            rmssdMs             = rmssd,
-            hrThresholdExceeded = hrExceeded,
+            isCrisisDetected     = isCrisis,
+            isPreAlert           = windowPositive && !isCrisis,
+            averageHrBpm         = meanHr,
+            rmssdMs              = rmssd,
+            hrThresholdExceeded  = hrExceeded,
             hrvThresholdExceeded = hrvExceeded,
             movementFilterPassed = movementFilterPassed,
-            calibrationWindows  = calibrationWindows
+            calibrationWindows   = calibrationWindows
         )
     }
 
     fun isCalibrated() = calibrationWindows >= WesadThresholds.MIN_CALIBRATION_WINDOWS
+
+    /**
+     * Resetea el estado en memoria del detector.
+     * Llamar después de borrar las SharedPreferences para que la
+     * calibración empiece desde cero en el próximo ciclo de análisis.
+     */
+    fun reset() {
+        hrBaseline = RunningStats(
+            fallbackMean = WesadThresholds.HR_BASELINE_MEAN,
+            fallbackStd  = WesadThresholds.HR_BASELINE_STD
+        )
+        hrvBaseline = RunningStats(
+            fallbackMean = WesadThresholds.HRV_RMSSD_BASELINE_MEAN,
+            fallbackStd  = WesadThresholds.HRV_RMSSD_BASELINE_STD
+        )
+        calibrationWindows         = 0
+        consecutivePositiveWindows = 0
+        Log.d("WatchDetector", "Detector reseteado — recalibrando desde cero")
+    }
 
     private fun loadBaseline() {
         val data = WatchBaseline.load(context) ?: return
@@ -92,6 +110,7 @@ class WatchCrisisDetector(private val context: Context) {
             calibrationWindows = calibrationWindows
         )
     }
+
     companion object {
         @Volatile
         private var instance: WatchCrisisDetector? = null
@@ -105,5 +124,3 @@ class WatchCrisisDetector(private val context: Context) {
         }
     }
 }
-
-

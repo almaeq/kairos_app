@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
-    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
-    <uses-permission android:name="android.permission.health.READ_STEPS"/>
+    <!-- Permisos estándar de Android -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH"/>
     <uses-permission android:name="android.permission.BODY_SENSORS"/>
     <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND"/>
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
+
+    <!-- Permisos de Health Connect -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
+    <uses-permission android:name="android.permission.health.READ_STEPS"/>
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -26,7 +29,7 @@
         android:theme="@style/Theme.Kairos">
 
         <activity
-            android:name=".ui.CalibrationActivity"
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -34,13 +37,29 @@
             </intent-filter>
         </activity>
 
+        <!-- OBLIGATORIO para Health Connect: declara qué permisos de salud usa esta app -->
         <activity
-            android:name=".MainActivity"
+            android:name="androidx.health.connect.client.PermissionController"
             android:exported="true">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
             </intent-filter>
         </activity>
+
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity="androidx.health.connect.client.PermissionController">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name=".ui.CalibrationActivity"
+            android:exported="false"/>
 
         <service
             android:name="com.example.kairos.mobile.detection.KairosMonitorService"
@@ -51,11 +70,11 @@
             android:name=".mobile.KairosPhoneListener"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED"/>
                 <data
                     android:host="*"
                     android:pathPrefix="/kairos"
-                    android:scheme="wear" />
+                    android:scheme="wear"/>
             </intent-filter>
         </service>
 

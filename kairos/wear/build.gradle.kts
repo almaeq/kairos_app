@@ -58,4 +58,5 @@ dependencies {
     implementation(libs.androidx.health.connect.client)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
 
+
 }
