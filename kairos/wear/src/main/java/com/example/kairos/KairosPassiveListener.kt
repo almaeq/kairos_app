@@ -1,5 +1,9 @@
 package com.example.kairos
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
 import androidx.health.services.client.PassiveListenerService
 import androidx.health.services.client.data.DataPointContainer
@@ -12,12 +16,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class KairosPassiveListener : PassiveListenerService() {
 
-    // Scope propio ligado al ciclo de vida del servicio — no GlobalScope
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val hrBuffer = mutableListOf<Double>()
@@ -26,12 +30,42 @@ class KairosPassiveListener : PassiveListenerService() {
     private var windowStartMs = 0L
     private val CALIBRATION_WINDOW_MS = 60_000L
     private val MAX_BUFFER_SIZE = 80
+    private val HEARTBEAT_INTERVAL_MS = 60_000L
+
+    // Recibe el reset desde KairosWatchService
+    private val resetReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            windowStartMs = System.currentTimeMillis()
+            hrBuffer.clear()
+            Log.d("KairosPassive", "Ventana reseteada via broadcast")
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         detector = WatchCrisisDetector.getInstance(this)
         windowStartMs = System.currentTimeMillis()
-        Log.d("KairosPassive", "Listener creado — cal: ${detector.calibrationWindows}/3")
+        registerReceiver(resetReceiver, IntentFilter("com.example.kairos.RESET_WINDOW"),
+            RECEIVER_NOT_EXPORTED)
+        startHeartbeat()
+        Log.d("KairosPassive", "PassiveListener iniciado — cal: ${detector.calibrationWindows}/3")
+    }
+
+    // Timer propio de heartbeat — independiente del ExerciseClient
+    private fun startHeartbeat() {
+        scope.launch {
+            while (true) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                val state = WatchMonitorState.state.value
+                if (state.heartRate > 0) {
+                    sendToPhone(
+                        "/kairos/heartbeat",
+                        "hr=${state.heartRate},rmssd=${state.rmssd},cal=${state.calibrationWindows}"
+                    )
+                    Log.d("KairosPassive", "Heartbeat enviado — HR=${state.heartRate}")
+                }
+            }
+        }
     }
 
     override fun onNewDataPointsReceived(dataPoints: DataPointContainer) {
@@ -39,7 +73,6 @@ class KairosPassiveListener : PassiveListenerService() {
         if (hrData.isEmpty()) return
 
         hrData.forEach { hrBuffer.add(it.value) }
-
         while (hrBuffer.size > MAX_BUFFER_SIZE) hrBuffer.removeAt(0)
 
         Log.d("KairosPassive", "HR: ${hrData.last().value} BPM — buffer: ${hrBuffer.size}")
@@ -51,7 +84,8 @@ class KairosPassiveListener : PassiveListenerService() {
 
         if (!detector.isCalibrated()) {
             val remainingSecs = ((CALIBRATION_WINDOW_MS - elapsedMs) / 1000).coerceAtLeast(0)
-            Log.d("KairosPassive", "Calibrando ${detector.calibrationWindows + 1}/3 — faltan ${remainingSecs}s")
+            Log.d("KairosPassive", "Calibrando ${detector.calibrationWindows + 1}/3 " +
+                    "— faltan ${remainingSecs}s")
             if (elapsedMs < CALIBRATION_WINDOW_MS) return
             windowStartMs = now
         }
@@ -65,6 +99,7 @@ class KairosPassiveListener : PassiveListenerService() {
             repeat(keepFrom) { if (hrBuffer.isNotEmpty()) hrBuffer.removeAt(0) }
         }
 
+        // Actualizar estado — el heartbeat timer lo mandará al celular
         WatchMonitorState.update(
             heartRate          = result.averageHrBpm,
             rmssd              = result.rmssdMs,
@@ -76,23 +111,18 @@ class KairosPassiveListener : PassiveListenerService() {
             calibrationWindows = result.calibrationWindows
         )
 
+        // Crisis y pre-alerta se mandan inmediatamente, sin esperar el heartbeat
         when {
             result.isCrisisDetected -> {
-                Log.d("KairosPassive", "🚨 CRISIS detectada en background")
+                Log.d("KairosPassive", "🚨 CRISIS detectada")
                 sendToPhone("/kairos/crisis",
                     "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
             }
             result.isPreAlert -> {
-                Log.d("KairosPassive", "⚠️ PRE-ALERTA en background")
+                Log.d("KairosPassive", "⚠️ PRE-ALERTA")
                 sendToPhone("/kairos/prealerta", "hr=${result.averageHrBpm}")
             }
             else -> {
-                // En background el PassiveListener recibe datos con menor frecuencia,
-                // así que cada ciclo normal ya funciona como heartbeat al celular
-                sendToPhone(
-                    "/kairos/heartbeat",
-                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}"
-                )
                 Log.d("KairosPassive", "✅ Normal — HR=${"%.1f".format(result.averageHrBpm)} " +
                         "RMSSD=${"%.1f".format(result.rmssdMs)}")
             }
@@ -118,6 +148,7 @@ class KairosPassiveListener : PassiveListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterReceiver(resetReceiver)
         scope.cancel()
     }
 }
