@@ -7,55 +7,40 @@ import com.example.kairos.db.WatchBaseline
 class WatchCrisisDetector(private val context: Context) {
 
     private var consecutivePositiveWindows = 0
-
-    private var hrBaseline = RunningStats(
-        fallbackMean = WesadThresholds.HR_BASELINE_MEAN,
-        fallbackStd  = WesadThresholds.HR_BASELINE_STD
-    )
-    private var hrvBaseline = RunningStats(
-        fallbackMean = WesadThresholds.HRV_RMSSD_BASELINE_MEAN,
-        fallbackStd  = WesadThresholds.HRV_RMSSD_BASELINE_STD
-    )
+    private var hrBaseline = RunningStats(WesadThresholds.HR_BASELINE_MEAN, WesadThresholds.HR_BASELINE_STD)
+    private var hrvBaseline = RunningStats(WesadThresholds.HRV_RMSSD_BASELINE_MEAN, WesadThresholds.HRV_RMSSD_BASELINE_STD)
     var calibrationWindows = 0
         private set
 
-    init {
-        loadBaseline()
-    }
+    init { loadBaseline() }
 
     fun analyze(bpmSamples: List<Double>, stepsInWindow: Long = 0L): WatchDetectionResult? {
         val meanHr = HrvCalculator.calculateMeanHr(bpmSamples) ?: return null
         val rmssd  = HrvCalculator.calculateRmssd(bpmSamples)  ?: return null
 
-        val stepsPerMinute       = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
-        val movementFilterPassed = stepsPerMinute <= 30
+        val movementFilterPassed = (stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)) <= 30
 
-        if (movementFilterPassed &&
-            calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
+        if (movementFilterPassed && calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
             hrBaseline.add(meanHr)
             hrvBaseline.add(rmssd)
             calibrationWindows++
             saveBaseline()
-            Log.d("WatchDetector", "Calibrando: $calibrationWindows/${WesadThresholds.MIN_CALIBRATION_WINDOWS}")
         }
 
         val zHr    = hrBaseline.zScore(meanHr)
         val zRmssd = hrvBaseline.zScore(rmssd)
+        val zCombined = (zHr + (-zRmssd)) / 2.0
 
-        val hrExceeded  = zHr    >  WesadThresholds.SENSITIVITY_SIGMAS
-        val hrvExceeded = zRmssd < -WesadThresholds.SENSITIVITY_SIGMAS
+        val hrExceeded  = zHr > WesadThresholds.Z_HR_TRIGGER
+        val hrvExceeded = zRmssd < WesadThresholds.Z_RMSSD_TRIGGER
+        val combinedFired = zCombined > WesadThresholds.Z_COMBINED_TRIGGER
 
-        val windowPositive = (hrExceeded || hrvExceeded) && movementFilterPassed
+        val windowPositive = (combinedFired || (hrExceeded && hrvExceeded)) && movementFilterPassed
 
         if (windowPositive) consecutivePositiveWindows++
         else consecutivePositiveWindows = 0
 
-        val isCrisis = consecutivePositiveWindows >=
-                WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
-
-        Log.d("WatchDetector", "HR=${"%.1f".format(meanHr)} RMSSD=${"%.1f".format(rmssd)} " +
-                "zHR=${"%.2f".format(zHr)} zRMSSD=${"%.2f".format(zRmssd)} " +
-                "crisis=$isCrisis consec=$consecutivePositiveWindows")
+        val isCrisis = consecutivePositiveWindows >= WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
 
         return WatchDetectionResult(
             isCrisisDetected     = isCrisis,
@@ -68,7 +53,6 @@ class WatchCrisisDetector(private val context: Context) {
             calibrationWindows   = calibrationWindows
         )
     }
-
     fun isCalibrated() = calibrationWindows >= WesadThresholds.MIN_CALIBRATION_WINDOWS
 
     /**

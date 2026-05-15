@@ -10,12 +10,14 @@ import android.util.Log
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.data.*
 import androidx.health.services.client.setPassiveListenerService
+import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.ui.WatchMonitorState
 
@@ -44,7 +46,6 @@ class KairosWatchService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_RESET_WINDOW) {
-            // Notificar al PassiveListener via broadcast
             sendBroadcast(Intent("com.example.kairos.RESET_WINDOW"))
             Log.d("KairosWatch", "Reset enviado al PassiveListener")
         }
@@ -61,16 +62,37 @@ class KairosWatchService : Service() {
                     .setDataTypes(setOf(DataType.HEART_RATE_BPM))
                     .build()
 
-                // setPassiveListenerService es suspend fun — no necesita .await()
                 passiveClient.setPassiveListenerService(
                     KairosPassiveListener::class.java, config
                 )
-
                 Log.d("KairosWatch", "PassiveListener registrado ✅")
+
+                // Ping al teléfono para que levante el WearableListenerService
+                // inmediatamente, sin esperar el primer heartbeat (60s)
+                sendPingToPhone()
 
             } catch (e: Exception) {
                 Log.e("KairosWatch", "Error registrando PassiveListener: ${e.message}")
             }
+        }
+    }
+
+    private suspend fun sendPingToPhone() {
+        try {
+            val nodes = Wearable.getNodeClient(this@KairosWatchService)
+                .connectedNodes.await()
+            if (nodes.isEmpty()) {
+                Log.w("KairosWatch", "Ping: no hay nodos conectados")
+                return
+            }
+            nodes.forEach { node ->
+                Wearable.getMessageClient(this@KairosWatchService)
+                    .sendMessage(node.id, "/kairos/ping", ByteArray(0))
+                    .await()
+                Log.d("KairosWatch", "Ping enviado → ${node.displayName}")
+            }
+        } catch (e: Exception) {
+            Log.e("KairosWatch", "Error enviando ping: ${e.message}")
         }
     }
 
@@ -92,17 +114,19 @@ class KairosWatchService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
-        scope.cancel()
-        // Al destruirse el servicio, desregistrar el PassiveListener
-        scope.launch {
+        // FIX: usar un scope nuevo — el scope principal ya fue cancelado
+        // si se cancela antes del launch, la coroutine nunca se ejecutaría
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 HealthServices.getClient(this@KairosWatchService)
                     .passiveMonitoringClient
                     .clearPassiveListenerServiceAsync()
                     .await()
+                Log.d("KairosWatch", "PassiveListener limpiado ✅")
             } catch (e: Exception) {
                 Log.e("KairosWatch", "Error limpiando PassiveListener: ${e.message}")
             }
         }
+        scope.cancel()
     }
 }

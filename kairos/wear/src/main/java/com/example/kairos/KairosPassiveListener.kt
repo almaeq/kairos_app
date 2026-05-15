@@ -27,10 +27,18 @@ class KairosPassiveListener : PassiveListenerService() {
     private val hrBuffer = mutableListOf<Double>()
     private lateinit var detector: WatchCrisisDetector
 
-    private var windowStartMs = 0L
     private val CALIBRATION_WINDOW_MS = 60_000L
     private val MAX_BUFFER_SIZE = 80
     private val HEARTBEAT_INTERVAL_MS = 60_000L
+
+    // SharedPreferences para persistir windowStartMs entre reinicios del servicio
+    private val prefs by lazy {
+        getSharedPreferences("kairos_passive", Context.MODE_PRIVATE)
+    }
+
+    private var windowStartMs: Long
+        get() = prefs.getLong("window_start_ms", 0L)
+        set(value) = prefs.edit().putLong("window_start_ms", value).apply()
 
     // Recibe el reset desde KairosWatchService
     private val resetReceiver = object : BroadcastReceiver() {
@@ -44,14 +52,24 @@ class KairosPassiveListener : PassiveListenerService() {
     override fun onCreate() {
         super.onCreate()
         detector = WatchCrisisDetector.getInstance(this)
-        windowStartMs = System.currentTimeMillis()
-        registerReceiver(resetReceiver, IntentFilter("com.example.kairos.RESET_WINDOW"),
-            RECEIVER_NOT_EXPORTED)
+
+        // Si no hay windowStartMs guardado (primer arranque o tras reset),
+        // inicializarlo ahora. Si ya existe, la ventana continúa desde donde
+        // quedó antes del reinicio del servicio.
+        if (windowStartMs == 0L) {
+            windowStartMs = System.currentTimeMillis()
+        }
+
+        registerReceiver(
+            resetReceiver,
+            IntentFilter("com.example.kairos.RESET_WINDOW"),
+            RECEIVER_NOT_EXPORTED
+        )
         startHeartbeat()
-        Log.d("KairosPassive", "PassiveListener iniciado — cal: ${detector.calibrationWindows}/3")
+        Log.d("KairosPassive", "PassiveListener iniciado — cal: ${detector.calibrationWindows}/3 " +
+                "— ventana en curso desde hace ${(System.currentTimeMillis() - windowStartMs) / 1000}s")
     }
 
-    // Timer propio de heartbeat — independiente del ExerciseClient
     private fun startHeartbeat() {
         scope.launch {
             while (true) {
@@ -87,7 +105,7 @@ class KairosPassiveListener : PassiveListenerService() {
             Log.d("KairosPassive", "Calibrando ${detector.calibrationWindows + 1}/3 " +
                     "— faltan ${remainingSecs}s")
             if (elapsedMs < CALIBRATION_WINDOW_MS) return
-            windowStartMs = now
+            windowStartMs = now  // persiste automáticamente via setter
         }
 
         val result = detector.analyze(hrBuffer.toList()) ?: return
@@ -99,7 +117,6 @@ class KairosPassiveListener : PassiveListenerService() {
             repeat(keepFrom) { if (hrBuffer.isNotEmpty()) hrBuffer.removeAt(0) }
         }
 
-        // Actualizar estado — el heartbeat timer lo mandará al celular
         WatchMonitorState.update(
             heartRate          = result.averageHrBpm,
             rmssd              = result.rmssdMs,
@@ -111,7 +128,16 @@ class KairosPassiveListener : PassiveListenerService() {
             calibrationWindows = result.calibrationWindows
         )
 
-        // Crisis y pre-alerta se mandan inmediatamente, sin esperar el heartbeat
+        // Al completar calibración, mandar heartbeat inmediato al teléfono
+        // sin esperar los 60s del timer (que recién arrancó)
+        if (result.calibrationWindows == detector.calibrationWindows && detector.isCalibrated()) {
+            Log.d("KairosPassive", "✅ Calibración completa — enviando heartbeat inmediato")
+            sendToPhone(
+                "/kairos/heartbeat",
+                "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}"
+            )
+        }
+
         when {
             result.isCrisisDetected -> {
                 Log.d("KairosPassive", "🚨 CRISIS detectada")
@@ -130,7 +156,9 @@ class KairosPassiveListener : PassiveListenerService() {
     }
 
     private fun sendToPhone(path: String, data: String) {
-        scope.launch {
+        // Scope propio por envío: si el scope principal fue cancelado (onDestroy
+        // llegó justo en este momento), el mensaje igual se despacha.
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 val nodes = Wearable.getNodeClient(this@KairosPassiveListener)
                     .connectedNodes.await()

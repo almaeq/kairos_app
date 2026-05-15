@@ -28,39 +28,41 @@ class CrisisDetector {
         val rmssd  = HrvCalculator.calculateRmssd(hrSamples)  ?: return null
 
         val stepsPerMinute       = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
-        val activeBySteps        = stepsPerMinute > 30
-        val activeByAcc          = accelerometerMagnitude > WesadThresholds.ACC_MOVEMENT_THRESHOLD
-        val movementFilterPassed = !activeBySteps && !activeByAcc
+        val movementFilterPassed = stepsPerMinute <= 30 && accelerometerMagnitude <= WesadThresholds.ACC_MOVEMENT_THRESHOLD
 
-        if (movementFilterPassed &&
-            calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
+        // Calibración incremental
+        if (movementFilterPassed && calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
             hrBaseline.add(meanHr)
             hrvBaseline.add(rmssd)
             calibrationWindows++
         }
 
+        // Inferencia basada en el modelo
         val zHr    = hrBaseline.zScore(meanHr)
         val zRmssd = hrvBaseline.zScore(rmssd)
 
-        val hrThresholdExceeded  = zHr    >  WesadThresholds.SENSITIVITY_SIGMAS
-        val hrvThresholdExceeded = zRmssd < -WesadThresholds.SENSITIVITY_SIGMAS
+        // El Score Combinado es el promedio de la activación (Z-HR) y la pérdida de HRV (-Z-RMSSD)
+        val zCombined = (zHr + (-zRmssd)) / 2.0
 
-        val windowPositive = (hrThresholdExceeded || hrvThresholdExceeded) &&
-                movementFilterPassed
+        val hrFired       = zHr > WesadThresholds.Z_HR_TRIGGER
+        val hrvFired      = zRmssd < WesadThresholds.Z_RMSSD_TRIGGER
+        val combinedFired = zCombined > WesadThresholds.Z_COMBINED_TRIGGER
+
+        // Decisión final: el modelo es positivo si el combinado dispara o ambos individuales disparan
+        val windowPositive = (combinedFired || (hrFired && hrvFired)) && movementFilterPassed
 
         if (windowPositive) consecutivePositiveWindows++
         else consecutivePositiveWindows = 0
 
-        val isCrisis = consecutivePositiveWindows >=
-                WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
+        val isCrisis = consecutivePositiveWindows >= WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
 
         return DetectionResult(
             isCrisisDetected     = isCrisis,
             averageHrBpm         = meanHr,
             rmssdMs              = rmssd,
             movementMagnitude    = accelerometerMagnitude,
-            hrThresholdExceeded  = hrThresholdExceeded,
-            hrvThresholdExceeded = hrvThresholdExceeded,
+            hrThresholdExceeded  = hrFired,
+            hrvThresholdExceeded = hrvFired,
             movementFilterPassed = movementFilterPassed
         )
     }
