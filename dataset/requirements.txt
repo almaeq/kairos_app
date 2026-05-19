@@ -7,3 +7,4 @@ jupyter
 ipykernel
 seaborn
 scikit-learn
+m2cgen

@@ -28,48 +28,55 @@ class CrisisDetector {
         val rmssd  = HrvCalculator.calculateRmssd(hrSamples)  ?: return null
 
         val stepsPerMinute       = stepsInWindow / (WesadThresholds.ANALYSIS_WINDOW_SECONDS / 60.0)
-        val movementFilterPassed = stepsPerMinute <= 30 && accelerometerMagnitude <= WesadThresholds.ACC_MOVEMENT_THRESHOLD
+        val movementFilterPassed = stepsPerMinute <= 30 &&
+                accelerometerMagnitude <= WesadThresholds.ACC_MOVEMENT_THRESHOLD
 
-        // Calibración incremental
+        // ── Calibración incremental ───────────────────────────────────────────
         if (movementFilterPassed && calibrationWindows < WesadThresholds.MIN_CALIBRATION_WINDOWS) {
             hrBaseline.add(meanHr)
             hrvBaseline.add(rmssd)
             calibrationWindows++
         }
 
-        // Inferencia basada en el modelo
-        val zHr    = hrBaseline.zScore(meanHr)
-        val zRmssd = hrvBaseline.zScore(rmssd)
+        // ── Predicción con Random Forest ──────────────────────────────────────
+        // CrisisPredictor normaliza internamente con el baseline personal
+        // y devuelve prob(crisis) entre 0.0 y 1.0
+        val prediction = CrisisPredictor.predict(
+            hrMean        = meanHr,
+            rmssd         = rmssd,
+            hrBaseline    = hrBaseline.mean,
+            hrStd         = hrBaseline.std,
+            rmssdBaseline = hrvBaseline.mean,
+            rmssdStd      = hrvBaseline.std
+        )
 
-        // El Score Combinado es el promedio de la activación (Z-HR) y la pérdida de HRV (-Z-RMSSD)
-        val zCombined = (zHr + (-zRmssd)) / 2.0
-
-        val hrFired       = zHr > WesadThresholds.Z_HR_TRIGGER
-        val hrvFired      = zRmssd < WesadThresholds.Z_RMSSD_TRIGGER
-        val combinedFired = zCombined > WesadThresholds.Z_COMBINED_TRIGGER
-
-        // Decisión final: el modelo es positivo si el combinado dispara o ambos individuales disparan
-        val windowPositive = (combinedFired || (hrFired && hrvFired)) && movementFilterPassed
+        // ── Confirmación por ventanas consecutivas ────────────────────────────
+        val windowPositive = (prediction.isPreAlert || prediction.isCrisis) && movementFilterPassed
 
         if (windowPositive) consecutivePositiveWindows++
         else consecutivePositiveWindows = 0
 
-        val isCrisis = consecutivePositiveWindows >= WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
+        val confirmedCrisis = consecutivePositiveWindows >= WesadThresholds.CONSECUTIVE_WINDOWS_TO_CONFIRM
+
+        Log.d("CrisisDetector", "p(crisis)=${"%.2f".format(prediction.probCrisis)} " +
+                "ventanas_positivas=$consecutivePositiveWindows crisis=$confirmedCrisis")
 
         return DetectionResult(
-            isCrisisDetected     = isCrisis,
+            isCrisisDetected     = confirmedCrisis,
             averageHrBpm         = meanHr,
             rmssdMs              = rmssd,
             movementMagnitude    = accelerometerMagnitude,
-            hrThresholdExceeded  = hrFired,
-            hrvThresholdExceeded = hrvFired,
+            hrThresholdExceeded  = prediction.zHr > 1.0,    // solo informativo
+            hrvThresholdExceeded = prediction.zRmssd > 1.0, // solo informativo
             movementFilterPassed = movementFilterPassed
         )
     }
 
     fun resetConsecutiveCount() { consecutivePositiveWindows = 0 }
+
     fun getCalibrationStatus(): String =
         "$calibrationWindows/${WesadThresholds.MIN_CALIBRATION_WINDOWS} ventanas calibradas"
+
     fun isCalibrated(): Boolean =
         calibrationWindows >= WesadThresholds.MIN_CALIBRATION_WINDOWS
 
@@ -105,6 +112,8 @@ class RunningStats(
     var m2    = 0.0
         private set
 
+    val std: Double get() = if (count < 2) fallbackStd else sqrt(m2 / (count - 1))
+
     fun add(value: Double) {
         count++
         val delta  = value - mean
@@ -119,9 +128,7 @@ class RunningStats(
         m2    = savedM2
     }
 
-    fun std(): Double = if (count < 2) fallbackStd else sqrt(m2 / (count - 1))
-
     fun zScore(value: Double): Double =
         if (count < 2) (value - fallbackMean) / fallbackStd
-        else           (value - mean) / std()
+        else           (value - mean) / std
 }
