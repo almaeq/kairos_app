@@ -1,8 +1,14 @@
 package com.example.kairos.mobile
 
+import android.content.Intent
 import android.util.Log
+import com.example.kairos.ui.CrisisAlertActivity
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class KairosPhoneListener : WearableListenerService() {
 
@@ -58,6 +64,22 @@ class KairosPhoneListener : WearableListenerService() {
                     bpm                = bpm,
                     rmssd              = rmssd,
                     state              = CrisisState.CRISIS,
+                    calibrationWindows = MonitorState.data.value.calibrationWindows
+                )
+            }
+            // El usuario no respondió en 30s → enviar SMS
+            "/kairos/crisis/confirmada" -> {
+                Log.d("KairosPhone", "Crisis confirmada — abriendo pantalla de alerta")
+                CrisisAlertActivity.launch(applicationContext)
+            }
+
+// El usuario tocó "Estoy bien" → cancelar sin SMS
+            "/kairos/crisis/cancelada" -> {
+                Log.d("KairosPhone", "Crisis cancelada por usuario — sin SMS")
+                MonitorState.updateFromWear(
+                    bpm                = MonitorState.data.value.heartRate,
+                    rmssd              = MonitorState.data.value.rmssd,
+                    state              = CrisisState.NORMAL,
                     calibrationWindows = MonitorState.data.value.calibrationWindows
                 )
             }

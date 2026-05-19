@@ -13,6 +13,11 @@
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE"/>
     <uses-permission android:name="android.permission.health.READ_STEPS"/>
 
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
         <package android:name="com.google.android.apps.fitness" />
@@ -37,6 +42,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.CrisisAlertActivity"
+            android:exported="false"
+            android:showOnLockScreen="true" />
+
         <!-- OBLIGATORIO para Health Connect: declara qué permisos de salud usa esta app -->
         <activity
             android:name="androidx.health.connect.client.PermissionController"
@@ -45,6 +55,7 @@
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
             </intent-filter>
         </activity>
+        <activity android:name=".ui.ContactsActivity" android:exported="false" />
 
         <activity-alias
             android:name="ViewPermissionUsageActivity"

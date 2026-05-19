@@ -1,6 +1,9 @@
 package com.example.kairos
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -27,15 +30,30 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.example.kairos.mobile.CrisisState
 import com.example.kairos.mobile.MonitorState
+import com.example.kairos.mobile.SmsAlertManager
 import com.example.kairos.mobile.data.BaselineRepository
 import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.ui.CalibrationActivity
+import com.example.kairos.ui.ContactsActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var baselineRepo: BaselineRepository
+
+    // Recibe el broadcast del KairosPhoneListener y envía el SMS
+    // desde el contexto de la Activity (no del WearableListenerService)
+    private val smsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_SEND_SMS) {
+                Log.d("KAIROS", "Broadcast SMS recibido — enviando alerta")
+                lifecycleScope.launch {
+                    SmsAlertManager.sendEmergencyAlert(this@MainActivity)
+                }
+            }
+        }
+    }
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
@@ -51,8 +69,21 @@ class MainActivity : ComponentActivity() {
         val db = KairosDatabase.getInstance(this)
         baselineRepo = BaselineRepository(db.kairosDao(), this)
 
-        // Pre-cargar el estado de calibración desde Room al arrancar,
-        // sin esperar el primer heartbeat del reloj (que puede tardar 60s)
+        requestPermissions.launch(arrayOf(
+            "android.permission.SEND_SMS",
+            "android.permission.READ_CONTACTS",
+            "android.permission.READ_PHONE_STATE"
+
+
+        ))
+
+        // Registrar receiver para el SMS de emergencia
+        registerReceiver(
+            smsReceiver,
+            IntentFilter(ACTION_SEND_SMS),
+            Context.RECEIVER_NOT_EXPORTED
+        )
+
         lifecycleScope.launch {
             val baseline = db.kairosDao().getBaseline()
             if (baseline != null) {
@@ -64,8 +95,17 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MonitorScreen(onRecalibrate = { recalibrate() })
+            MonitorScreen(
+                onRecalibrate = { recalibrate() },
+                onContacts    = { startActivity(Intent(this, ContactsActivity::class.java)) },
+                onTestSms     = { lifecycleScope.launch { SmsAlertManager.sendEmergencyAlert(this@MainActivity) } }
+            )
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(smsReceiver) } catch (e: Exception) { }
     }
 
     private fun recalibrate() {
@@ -74,10 +114,20 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(this@MainActivity, CalibrationActivity::class.java))
         }
     }
+
+    companion object {
+        const val ACTION_SEND_SMS = "com.example.kairos.SEND_EMERGENCY_SMS"
+    }
 }
 
+// ── Composables — sin cambios ─────────────────────────────────────────────────
+
 @Composable
-fun MonitorScreen(onRecalibrate: () -> Unit = {}) {
+fun MonitorScreen(
+    onRecalibrate: () -> Unit = {},
+    onContacts:    () -> Unit = {},
+    onTestSms:     () -> Unit = {}
+) {
     val monitorData by MonitorState.data.collectAsState()
 
     var tickerSeconds by remember { mutableStateOf(0) }
@@ -236,9 +286,15 @@ fun MonitorScreen(onRecalibrate: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.weight(1f))
 
+            TextButton(onClick = onContacts, modifier = Modifier.fillMaxWidth()) {
+                Text("👥  Contactos de confianza", fontSize = 13.sp, color = TextSecondary)
+            }
+
             TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
                 Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)
             }
+
+            // ────────────────────────────────────────────────────────────────
 
             Spacer(modifier = Modifier.height(8.dp))
         }

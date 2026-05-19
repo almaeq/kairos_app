@@ -291,7 +291,7 @@ fun MonitorScreen(onResetBaseline: () -> Unit = {}) {
 @Composable
 fun CrisisScreen(
     heartRate:           Double,
-    countdownSeconds:    Int      = 30,
+    countdownSeconds:    Int      = 15,
     onUserIsOk:          () -> Unit = {},
     onCountdownFinished: () -> Unit = {},
     vibrator:            Vibrator? = null
