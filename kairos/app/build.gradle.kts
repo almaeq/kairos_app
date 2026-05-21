@@ -62,6 +62,7 @@ dependencies {
 
 // Lifecycle (para el ViewModel si lo usás)
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Health Services — directo en el reloj
     implementation("androidx.health:health-services-client:1.1.0-rc01")

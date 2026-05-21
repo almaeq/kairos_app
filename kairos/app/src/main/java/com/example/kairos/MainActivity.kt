@@ -35,6 +35,7 @@ import com.example.kairos.mobile.data.BaselineRepository
 import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.ui.CalibrationActivity
 import com.example.kairos.ui.ContactsActivity
+import com.example.kairos.ui.ExerciseSettingsActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -42,8 +43,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var baselineRepo: BaselineRepository
 
-    // Recibe el broadcast del KairosPhoneListener y envía el SMS
-    // desde el contexto de la Activity (no del WearableListenerService)
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_SEND_SMS) {
@@ -57,11 +56,8 @@ class MainActivity : ComponentActivity() {
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-            if (grants.values.all { it }) {
-                Log.d("KAIROS", "Permisos otorgados")
-            } else {
-                Log.e("KAIROS", "Permisos denegados")
-            }
+            if (grants.values.all { it }) Log.d("KAIROS", "Permisos otorgados")
+            else Log.e("KAIROS", "Permisos denegados")
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,24 +69,17 @@ class MainActivity : ComponentActivity() {
             "android.permission.SEND_SMS",
             "android.permission.READ_CONTACTS",
             "android.permission.READ_PHONE_STATE"
-
-
         ))
 
-        // Registrar receiver para el SMS de emergencia
-        registerReceiver(
-            smsReceiver,
-            IntentFilter(ACTION_SEND_SMS),
-            Context.RECEIVER_NOT_EXPORTED
-        )
+        registerReceiver(smsReceiver, IntentFilter(ACTION_SEND_SMS), Context.RECEIVER_NOT_EXPORTED)
 
         lifecycleScope.launch {
             val baseline = db.kairosDao().getBaseline()
             if (baseline != null) {
-                Log.d("KAIROS", "Baseline local encontrado — cal: ${baseline.calibrationWindows}/3")
+                Log.d("KAIROS", "Baseline local — cal: ${baseline.calibrationWindows}/3")
                 MonitorState.preloadCalibration(baseline.calibrationWindows)
             } else {
-                Log.d("KAIROS", "Sin baseline local — esperando calibración")
+                Log.d("KAIROS", "Sin baseline — esperando calibración")
             }
         }
 
@@ -98,6 +87,7 @@ class MainActivity : ComponentActivity() {
             MonitorScreen(
                 onRecalibrate = { recalibrate() },
                 onContacts    = { startActivity(Intent(this, ContactsActivity::class.java)) },
+                onTechnique   = { startActivity(Intent(this, ExerciseSettingsActivity::class.java)) },
                 onTestSms     = { lifecycleScope.launch { SmsAlertManager.sendEmergencyAlert(this@MainActivity) } }
             )
         }
@@ -120,12 +110,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ── Composables — sin cambios ─────────────────────────────────────────────────
-
 @Composable
 fun MonitorScreen(
     onRecalibrate: () -> Unit = {},
     onContacts:    () -> Unit = {},
+    onTechnique:   () -> Unit = {},
     onTestSms:     () -> Unit = {}
 ) {
     val monitorData by MonitorState.data.collectAsState()
@@ -155,8 +144,7 @@ fun MonitorScreen(
             CrisisState.PRE_ALERT -> KairosOrange
             CrisisState.CRISIS    -> KairosRed
         },
-        animationSpec = tween(600),
-        label = "stateColor"
+        animationSpec = tween(600), label = "stateColor"
     )
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -164,10 +152,7 @@ fun MonitorScreen(
         initialValue = 1f,
         targetValue  = if (monitorData.crisisState == CrisisState.CRISIS) 1.15f else 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (monitorData.crisisState == CrisisState.CRISIS) 400 else 1000,
-                easing = EaseInOut
-            ),
+            animation  = tween(if (monitorData.crisisState == CrisisState.CRISIS) 400 else 1000, easing = EaseInOut),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseScale"
@@ -189,9 +174,8 @@ fun MonitorScreen(
 
             Box(contentAlignment = Alignment.Center) {
                 Box(modifier = Modifier.size(180.dp).scale(pulseScale).background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(stateColor.copy(alpha = 0.15f), Color.Transparent)
-                    ), shape = CircleShape))
+                    brush = Brush.radialGradient(colors = listOf(stateColor.copy(alpha = 0.15f), Color.Transparent)),
+                    shape = CircleShape))
                 Box(modifier = Modifier.size(150.dp).background(
                     color = stateColor.copy(alpha = 0.08f), shape = CircleShape))
                 Box(modifier = Modifier.size(120.dp).background(
@@ -199,8 +183,7 @@ fun MonitorScreen(
                     contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (monitorData.heartRate > 0)
-                                "%.0f".format(monitorData.heartRate) else "—",
+                            text = if (monitorData.heartRate > 0) "%.0f".format(monitorData.heartRate) else "—",
                             fontSize = 42.sp, fontWeight = FontWeight.Bold, color = TextPrimary
                         )
                         Text("BPM", fontSize = 12.sp, color = TextSecondary, letterSpacing = 2.sp)
@@ -221,8 +204,7 @@ fun MonitorScreen(
                 )
             }
 
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard(modifier = Modifier.weight(1f), label = "RMSSD",
                     value = if (monitorData.rmssd > 0) "%.1f ms".format(monitorData.rmssd) else "—",
                     color = KairosBlue, cardColor = CardDark)
@@ -235,22 +217,18 @@ fun MonitorScreen(
             if (!monitorData.isCalibrated) {
                 Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                     .background(KairosOrange.copy(alpha = 0.1f)).padding(16.dp)) {
-                    Text(
-                        text = "Calibrando perfil fisiológico...\nUsá el reloj un momento.",
+                    Text("Calibrando perfil fisiológico...\nUsá el reloj un momento.",
                         fontSize = 13.sp, color = KairosOrange, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        modifier = Modifier.fillMaxWidth())
                 }
             }
 
             if (monitorData.crisisState == CrisisState.CRISIS) {
                 Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                     .background(KairosRed.copy(alpha = 0.15f)).padding(16.dp)) {
-                    Text(
-                        text = "🚨 Crisis detectada\nSe están activando los protocolos de apoyo.",
+                    Text("🚨 Crisis detectada\nSe están activando los protocolos de apoyo.",
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = KairosRed,
-                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-                    )
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
             }
 
@@ -259,11 +237,9 @@ fun MonitorScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = if (monitorData.watchConnected) "⌚ Reloj conectado"
-                    else "⌚ Reloj desconectado",
+                    text = if (monitorData.watchConnected) "⌚ Reloj conectado" else "⌚ Reloj desconectado",
                     fontSize = 11.sp,
-                    color = if (monitorData.watchConnected) KairosGreen.copy(alpha = 0.7f)
-                    else TextSecondary
+                    color = if (monitorData.watchConnected) KairosGreen.copy(alpha = 0.7f) else TextSecondary
                 )
                 if (monitorData.lastUpdated > 0) {
                     Text(
@@ -286,15 +262,15 @@ fun MonitorScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
+            TextButton(onClick = onTechnique, modifier = Modifier.fillMaxWidth()) {
+                Text("🧘 Ejercicio de intervención", fontSize = 13.sp, color = TextSecondary)
+            }
             TextButton(onClick = onContacts, modifier = Modifier.fillMaxWidth()) {
                 Text("👥  Contactos de confianza", fontSize = 13.sp, color = TextSecondary)
             }
-
             TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
                 Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)
             }
-
-            // ────────────────────────────────────────────────────────────────
 
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -306,10 +282,8 @@ fun MetricCard(
     modifier: Modifier = Modifier,
     label: String, value: String, color: Color, cardColor: Color
 ) {
-    Box(modifier = modifier.clip(RoundedCornerShape(16.dp))
-        .background(cardColor).padding(16.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = modifier.clip(RoundedCornerShape(16.dp)).background(cardColor).padding(16.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Text(label, fontSize = 11.sp, color = Color(0xFF64748B), letterSpacing = 1.sp)
             Spacer(modifier = Modifier.height(6.dp))
             Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color)

@@ -47,6 +47,16 @@
             android:exported="false"
             android:showOnLockScreen="true" />
 
+        <activity android:name=".ui.GroundingActivity"
+            android:exported="false"
+            android:showOnLockScreen="true" />
+
+        <activity android:name=".ui.BreathingActivity"
+            android:exported="false"
+            android:showOnLockScreen="true" />
+
+        <activity android:name=".ui.ExerciseSettingsActivity" android:exported="false" />
+
         <!-- OBLIGATORIO para Health Connect: declara qué permisos de salud usa esta app -->
         <activity
             android:name="androidx.health.connect.client.PermissionController"

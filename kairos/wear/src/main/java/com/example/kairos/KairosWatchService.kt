@@ -3,6 +3,7 @@ package com.example.kairos
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
@@ -70,7 +71,10 @@ class KairosWatchService : Service() {
 
             if (!detector.isCalibrated()) {
                 val remainingSecs = ((CALIBRATION_WINDOW_MS - elapsedMs) / 1000).coerceAtLeast(0)
-                Log.d("KairosWatch", "Calibrando ${detector.calibrationWindows + 1}/3 — faltan ${remainingSecs}s")
+                Log.d(
+                    "KairosWatch",
+                    "Calibrando ${detector.calibrationWindows + 1}/3 — faltan ${remainingSecs}s"
+                )
                 if (elapsedMs < CALIBRATION_WINDOW_MS) return
                 windowStartMs = now
             }
@@ -85,12 +89,12 @@ class KairosWatchService : Service() {
             }
 
             WatchMonitorState.update(
-                heartRate          = result.averageHrBpm,
-                rmssd              = result.rmssdMs,
-                crisisState        = when {
+                heartRate = result.averageHrBpm,
+                rmssd = result.rmssdMs,
+                crisisState = when {
                     result.isCrisisDetected -> WatchCrisisState.CRISIS
-                    result.isPreAlert       -> WatchCrisisState.PRE_ALERT
-                    else                    -> WatchCrisisState.NORMAL
+                    result.isPreAlert -> WatchCrisisState.PRE_ALERT
+                    else -> WatchCrisisState.NORMAL
                 },
                 calibrationWindows = result.calibrationWindows
             )
@@ -98,29 +102,62 @@ class KairosWatchService : Service() {
             if (detector.isCalibrated() && !calibrationHeartbeatSent) {
                 calibrationHeartbeatSent = true
                 Log.d("KairosWatch", "✅ Calibración completa — heartbeat inmediato")
-                sendToPhone("/kairos/heartbeat",
-                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}")
+                sendToPhone(
+                    "/kairos/heartbeat",
+                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}"
+                )
             }
 
             when {
                 result.isCrisisDetected -> {
                     Log.d("KairosWatch", "🚨 CRISIS — HR=${result.averageHrBpm}")
-                    sendToPhone("/kairos/crisis",
-                        "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}")
-                    // Traer la app al frente aunque esté en background
-                    startActivity(
-                        Intent(this@KairosWatchService, MainActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        }
+                    sendToPhone(
+                        "/kairos/crisis",
+                        "hr=${result.averageHrBpm},rmssd=${result.rmssdMs}"
                     )
+
+                    // Notificación de alta prioridad — Android 14+ bloquea startActivity directo desde servicios
+                    val notificationManager = getSystemService(NotificationManager::class.java)
+                    val channelId = "kairos_crisis"
+                    val channel = NotificationChannel(
+                        channelId, "KAIROS Crisis",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        enableVibration(true)
+                        vibrationPattern = longArrayOf(0, 300, 150, 300, 150, 600)
+                    }
+                    notificationManager.createNotificationChannel(channel)
+
+                    val intent = Intent(this@KairosWatchService, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    }
+                    val pendingIntent = PendingIntent.getActivity(
+                        this@KairosWatchService, 0, intent,
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+
+                    val notification = Notification.Builder(this@KairosWatchService, channelId)
+                        .setContentTitle("⚠️ KAIROS — Crisis detectada")
+                        .setContentText("Tocá para iniciar el ejercicio de grounding")
+                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                        .setContentIntent(pendingIntent)
+                        .setAutoCancel(true)
+                        .setFullScreenIntent(pendingIntent, true)
+                        .build()
+
+                    notificationManager.notify(2, notification)
                 }
+
                 result.isPreAlert -> {
                     Log.d("KairosWatch", "⚠️ PRE-ALERTA — HR=${result.averageHrBpm}")
                     sendToPhone("/kairos/prealerta", "hr=${result.averageHrBpm}")
                 }
+
                 else -> {
-                    Log.d("KairosWatch", "✅ Normal — HR=${"%.1f".format(result.averageHrBpm)} " +
-                            "RMSSD=${"%.1f".format(result.rmssdMs)}")
+                    Log.d(
+                        "KairosWatch", "✅ Normal — HR=${"%.1f".format(result.averageHrBpm)} " +
+                                "RMSSD=${"%.1f".format(result.rmssdMs)}"
+                    )
                 }
             }
         }

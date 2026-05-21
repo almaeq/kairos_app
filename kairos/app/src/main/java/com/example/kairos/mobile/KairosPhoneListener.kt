@@ -2,7 +2,11 @@ package com.example.kairos.mobile
 
 import android.content.Intent
 import android.util.Log
+import com.example.kairos.mobile.techniques.BreathingState
+import com.example.kairos.mobile.techniques.GroundingState
+import com.example.kairos.ui.BreathingActivity
 import com.example.kairos.ui.CrisisAlertActivity
+import com.example.kairos.ui.GroundingActivity
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 import kotlinx.coroutines.CoroutineScope
@@ -82,6 +86,28 @@ class KairosPhoneListener : WearableListenerService() {
                     state              = CrisisState.NORMAL,
                     calibrationWindows = MonitorState.data.value.calibrationWindows
                 )
+            }
+            "/kairos/grounding/paso" -> {
+                val paso = String(messageEvent.data).toIntOrNull() ?: return
+                GroundingState.updateStep(paso)
+                if (paso in 1..5) GroundingActivity.launch(applicationContext)
+                Log.d("KairosPhone", "Grounding paso $paso")
+            }
+            "/kairos/breathing/update" -> {
+                val data  = String(messageEvent.data)
+                val phase = data.substringAfter("phase=").substringBefore(",")
+                val cycle = data.substringAfter("cycle=").toIntOrNull() ?: 0
+                BreathingState.updatePhase(phase, cycle)
+                // Abrir la pantalla la primera vez que llega un update (cycle == 1, phase == "Inhalá")
+                if (cycle == 1 && phase == "Inhalá") {
+                    BreathingActivity.launch(applicationContext)
+                }
+                Log.d("KairosPhone", "Breathing update — phase=$phase cycle=$cycle")
+            }
+
+            "/kairos/breathing/done" -> {
+                Log.d("KairosPhone", "Breathing completado")
+                BreathingState.markDone()
             }
         }
     }
