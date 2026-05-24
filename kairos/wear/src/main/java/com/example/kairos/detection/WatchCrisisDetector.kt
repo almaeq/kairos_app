@@ -54,7 +54,7 @@ class WatchCrisisDetector(private val context: Context) {
 
         Log.d("WatchDetector", "p(crisis)=${"%.2f".format(prediction.probCrisis)} " +
                 "ventanas_positivas=$consecutivePositiveWindows " +
-                "crisis=$confirmedCrisis filtro_mov==$movementFilterPassed")
+                "crisis=$confirmedCrisis filtro_mov=$movementFilterPassed")
 
         return WatchDetectionResult(
             isCrisisDetected     = confirmedCrisis,

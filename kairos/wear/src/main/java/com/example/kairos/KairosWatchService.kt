@@ -49,6 +49,12 @@ class KairosWatchService : Service() {
     private val HEARTBEAT_INTERVAL_MS = 60_000L
     private var calibrationHeartbeatSent = false
 
+    // Acelerómetro para el filtro de movimiento
+    private var accelerometerSteps = 0L
+    private var lastAccelMagnitude = 0f
+    private val MOVEMENT_THRESHOLD = 12f // m/s² — umbral para detectar movimiento significativo
+    private var movementCount      = 0
+
     private val prefs by lazy { getSharedPreferences("kairos_passive", MODE_PRIVATE) }
     private var windowStartMs: Long
         get() = prefs.getLong("window_start_ms", 0L)
@@ -62,7 +68,10 @@ class KairosWatchService : Service() {
             hrData.forEach { hrBuffer.add(it.value) }
             while (hrBuffer.size > MAX_BUFFER_SIZE) hrBuffer.removeAt(0)
 
-            Log.d("KairosWatch", "HR: ${hrData.last().value} BPM — buffer: ${hrBuffer.size}")
+            // Filtro de movimiento via acelerómetro — si hay movimiento intenso no es crisis
+            val stepsInWindow = accelerometerSteps
+
+            Log.d("KairosWatch", "HR: ${hrData.last().value} BPM — buffer: ${hrBuffer.size} — mov: $stepsInWindow")
 
             if (hrBuffer.size < 6) return
 
@@ -79,7 +88,7 @@ class KairosWatchService : Service() {
                 windowStartMs = now
             }
 
-            val result = detector.analyze(hrBuffer.toList()) ?: return
+            val result = detector.analyze(hrBuffer.toList(), stepsInWindow) ?: return
 
             if (!detector.isCalibrated()) {
                 hrBuffer.clear()
@@ -185,6 +194,7 @@ class KairosWatchService : Service() {
         startForeground(1, buildNotification())
         startExercise()
         startHeartbeat()
+        startAccelerometer()
 
         Log.d("KairosWatch", "Servicio iniciado — cal: ${detector.calibrationWindows}/3")
     }
@@ -250,6 +260,51 @@ class KairosWatchService : Service() {
         } catch (e: Exception) {
             Log.e("KairosWatch", "Fallback también falló: ${e.message}")
         }
+    }
+
+    private fun startAccelerometer() {
+        val sensorManager = getSystemService(android.hardware.SensorManager::class.java)
+        val accelerometer = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)
+
+        if (accelerometer == null) {
+            Log.w("KairosWatch", "Acelerómetro no disponible — filtro de movimiento desactivado")
+            return
+        }
+
+        sensorManager.registerListener(
+            object : android.hardware.SensorEventListener {
+                override fun onSensorChanged(event: android.hardware.SensorEvent?) {
+                    event ?: return
+                    val x = event.values[0]
+                    val y = event.values[1]
+                    val z = event.values[2]
+                    // Magnitud del vector de aceleración (sin gravedad aproximada)
+                    val magnitude = kotlin.math.sqrt((x * x + y * y + z * z).toDouble()).toFloat()
+                    // Contar eventos de movimiento significativo en la ventana
+                    if (magnitude > MOVEMENT_THRESHOLD) {
+                        movementCount++
+                        // Convertir a "pasos equivalentes" para el detector
+                        // El detector usa pasos/minuto <= 30 como umbral
+                        accelerometerSteps = movementCount.toLong()
+                    }
+                    // Resetear cada 60s (una ventana de análisis)
+                    lastAccelMagnitude = magnitude
+                }
+                override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+            },
+            accelerometer,
+            android.hardware.SensorManager.SENSOR_DELAY_NORMAL
+        )
+
+        // Resetear el contador cada 60s para que coincida con las ventanas del detector
+        scope.launch {
+            while (true) {
+                delay(60_000L)
+                movementCount  = 0
+                accelerometerSteps = 0L
+            }
+        }
+        Log.d("KairosWatch", "Acelerómetro registrado ✅")
     }
 
     private fun startHeartbeat() {
