@@ -57,6 +57,8 @@
 
         <activity android:name=".ui.ProfileActivity" android:exported="false" />
 
+        <activity android:name=".ui.EpisodeLogActivity" android:exported="false" />
+
         <activity android:name=".ui.ExerciseSettingsActivity" android:exported="false" />
 
         <!-- OBLIGATORIO para Health Connect: declara qué permisos de salud usa esta app -->

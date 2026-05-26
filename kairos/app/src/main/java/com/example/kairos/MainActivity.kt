@@ -39,6 +39,7 @@ import com.example.kairos.ui.CalibrationActivity
 import com.example.kairos.ui.ContactsActivity
 import com.example.kairos.ui.ExerciseSettingsActivity
 import com.example.kairos.ui.ProfileActivity
+import com.example.kairos.ui.EpisodeLogActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -92,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 onContacts    = { startActivity(Intent(this, ContactsActivity::class.java)) },
                 onTechnique   = { startActivity(Intent(this, ExerciseSettingsActivity::class.java)) },
                 onProfile     = { startActivity(Intent(this, ProfileActivity::class.java)) },
+                onEpisodes = { startActivity(Intent(this, EpisodeLogActivity::class.java)) },
                 onTestSms     = { lifecycleScope.launch { SmsAlertManager.sendEmergencyAlert(this@MainActivity) } }
             )
         }
@@ -120,6 +122,7 @@ fun MonitorScreen(
     onContacts:    () -> Unit = {},
     onTechnique:   () -> Unit = {},
     onProfile:     () -> Unit = {},
+    onEpisodes:     () -> Unit = {},
     onTestSms:     () -> Unit = {}
 ) {
     val monitorData by MonitorState.data.collectAsState()
@@ -289,6 +292,9 @@ fun MonitorScreen(
             }
             TextButton(onClick = onContacts, modifier = Modifier.fillMaxWidth()) {
                 Text("👥  Contactos de confianza", fontSize = 13.sp, color = TextSecondary)
+            }
+            TextButton(onClick = onEpisodes, modifier = Modifier.fillMaxWidth()) {
+                Text("📋 Bitácora de episodios", fontSize = 13.sp, color = TextSecondary)
             }
             TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
                 Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)
