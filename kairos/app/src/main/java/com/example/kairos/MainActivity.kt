@@ -15,6 +15,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +38,7 @@ import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.ui.CalibrationActivity
 import com.example.kairos.ui.ContactsActivity
 import com.example.kairos.ui.ExerciseSettingsActivity
+import com.example.kairos.ui.ProfileActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -88,6 +91,7 @@ class MainActivity : ComponentActivity() {
                 onRecalibrate = { recalibrate() },
                 onContacts    = { startActivity(Intent(this, ContactsActivity::class.java)) },
                 onTechnique   = { startActivity(Intent(this, ExerciseSettingsActivity::class.java)) },
+                onProfile     = { startActivity(Intent(this, ProfileActivity::class.java)) },
                 onTestSms     = { lifecycleScope.launch { SmsAlertManager.sendEmergencyAlert(this@MainActivity) } }
             )
         }
@@ -115,6 +119,7 @@ fun MonitorScreen(
     onRecalibrate: () -> Unit = {},
     onContacts:    () -> Unit = {},
     onTechnique:   () -> Unit = {},
+    onProfile:     () -> Unit = {},
     onTestSms:     () -> Unit = {}
 ) {
     val monitorData by MonitorState.data.collectAsState()
@@ -165,10 +170,27 @@ fun MonitorScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-
-            Text("KAIROS", fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                color = stateColor, letterSpacing = 6.sp)
-            Text("The Right Time", fontSize = 12.sp, color = TextSecondary, letterSpacing = 2.sp)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick  = onProfile,
+                    modifier = Modifier.align(Alignment.TopStart).size(36.dp)
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.Person,
+                        contentDescription = "Mi perfil",
+                        tint               = Color.White,
+                        modifier           = Modifier.size(25.dp)
+                    )
+                }
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("KAIROS", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        color = stateColor, letterSpacing = 6.sp)
+                    Text("The Right Time", fontSize = 12.sp, color = TextSecondary, letterSpacing = 2.sp)
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 

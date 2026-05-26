@@ -38,6 +38,7 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.example.kairos.db.WatchBaseline
+import com.example.kairos.health.InterventionSession
 import com.example.kairos.techniques.ExercisePreference
 import com.example.kairos.techniques.WatchExercisePrefs
 import com.example.kairos.ui.BreathingScreen
@@ -72,7 +73,8 @@ class MainActivity : ComponentActivity() {
             "android.permission.health.READ_HEART_RATE",
             "android.permission.BODY_SENSORS",
             "android.permission.ACTIVITY_RECOGNITION",
-            "android.permission.POST_NOTIFICATIONS"
+            "android.permission.POST_NOTIFICATIONS",
+            "android.permission.health.WRITE_MINDFULNESS"
         ))
 
         setContent {
@@ -178,6 +180,7 @@ fun MainWatchScreen(
                 },
                 onCountdownFinished = {
                     onCrisisConfirmed()
+                    InterventionSession.onExerciseStarted(exercisePref, state.heartRate)
                     // Decidir qué ejercicio mostrar según preferencia guardada en el reloj
                     currentScreen = when (exercisePref) {
                         ExercisePreference.GROUNDING_ONLY -> WatchScreen.GROUNDING
@@ -190,6 +193,7 @@ fun MainWatchScreen(
 
             WatchScreen.BREATHING -> BreathingScreen(
                 onFinished = {
+                    InterventionSession.onBreathingFinished(context)
                     // Si es BOTH, continuar con grounding después de la respiración
                     if (exercisePref == ExercisePreference.BOTH) {
                         currentScreen = WatchScreen.GROUNDING
@@ -202,6 +206,7 @@ fun MainWatchScreen(
 
             WatchScreen.GROUNDING -> GroundingScreen(
                 onFinished = {
+                    InterventionSession.onGroundingFinished(context)
                     WatchMonitorState.reset()
                     currentScreen = WatchScreen.MONITOR
                 }

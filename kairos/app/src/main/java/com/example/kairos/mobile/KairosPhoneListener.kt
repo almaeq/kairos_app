@@ -2,6 +2,8 @@ package com.example.kairos.mobile
 
 import android.content.Intent
 import android.util.Log
+import com.example.kairos.mobile.data.db.BaselineStats
+import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.mobile.techniques.BreathingState
 import com.example.kairos.mobile.techniques.GroundingState
 import com.example.kairos.ui.BreathingActivity
@@ -39,6 +41,35 @@ class KairosPhoneListener : WearableListenerService() {
                     state              = CrisisState.NORMAL,
                     calibrationWindows = cal
                 )
+            }
+
+            "/kairos/baseline" -> {
+                val data    = String(messageEvent.data)
+                val hrMean  = data.substringAfter("hrMean=").substringBefore(",").toDoubleOrNull() ?: 0.0
+                val hrM2    = data.substringAfter("hrM2=").substringBefore(",").toDoubleOrNull() ?: 0.0
+                val hrCount = data.substringAfter("hrCount=").substringBefore(",").toIntOrNull() ?: 0
+                val hrvMean = data.substringAfter("hrvMean=").substringBefore(",").toDoubleOrNull() ?: 0.0
+                val hrvM2   = data.substringAfter("hrvM2=").substringBefore(",").toDoubleOrNull() ?: 0.0
+                val hrvCount = data.substringAfter("hrvCount=").substringBefore(",").toIntOrNull() ?: 0
+                val cal     = data.substringAfter("cal=").toIntOrNull() ?: 0
+
+                Log.d("KairosPhone", "Baseline recibido — HR=$hrMean RMSSD=$hrvMean cal=$cal")
+
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    KairosDatabase.getInstance(applicationContext).kairosDao().saveBaseline(
+                        BaselineStats(
+                            hrCount = hrCount,
+                            hrMean = hrMean,
+                            hrM2 = hrM2,
+                            hrvCount = hrvCount,
+                            hrvMean = hrvMean,
+                            hrvM2 = hrvM2,
+                            calibrationWindows = cal,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                    MonitorState.preloadCalibration(cal)
+                }
             }
 
             "/kairos/hr" -> {

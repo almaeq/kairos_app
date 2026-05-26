@@ -19,6 +19,7 @@ import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
 import androidx.health.services.client.data.WarmUpConfig
 import androidx.health.services.client.setPassiveListenerService
+import com.example.kairos.db.WatchBaseline
 import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.ui.WatchCrisisState
 import com.example.kairos.ui.WatchMonitorState
@@ -111,10 +112,19 @@ class KairosWatchService : Service() {
             if (detector.isCalibrated() && !calibrationHeartbeatSent) {
                 calibrationHeartbeatSent = true
                 Log.d("KairosWatch", "✅ Calibración completa — heartbeat inmediato")
-                sendToPhone(
-                    "/kairos/heartbeat",
-                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}"
-                )
+
+                // Enviar baseline completo al teléfono
+                val bl = WatchBaseline.load(this@KairosWatchService)
+                if (bl != null) {
+                    sendToPhone("/kairos/baseline",
+                        "hrMean=${bl.hrMean},hrM2=${bl.hrM2},hrCount=${bl.hrCount}," +
+                                "hrvMean=${bl.hrvMean},hrvM2=${bl.hrvM2},hrvCount=${bl.hrvCount}," +
+                                "cal=${bl.calibrationWindows}")
+                }
+
+                // Heartbeat normal también
+                sendToPhone("/kairos/heartbeat",
+                    "hr=${result.averageHrBpm},rmssd=${result.rmssdMs},cal=${result.calibrationWindows}")
             }
 
             when {
