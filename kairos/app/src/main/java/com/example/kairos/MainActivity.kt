@@ -40,6 +40,7 @@ import com.example.kairos.ui.ContactsActivity
 import com.example.kairos.ui.ExerciseSettingsActivity
 import com.example.kairos.ui.ProfileActivity
 import com.example.kairos.ui.EpisodeLogActivity
+import com.example.kairos.ui.TermsActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -65,6 +66,11 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (!TermsActivity.hasAccepted(this)) {
+            TermsActivity.launchForOnboarding(this)
+            finish()
+            return
+        }
         super.onCreate(savedInstanceState)
         val db = KairosDatabase.getInstance(this)
         baselineRepo = BaselineRepository(db.kairosDao(), this)

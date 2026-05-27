@@ -58,6 +58,7 @@
         <activity android:name=".ui.ProfileActivity" android:exported="false" />
 
         <activity android:name=".ui.EpisodeLogActivity" android:exported="false" />
+        <activity android:name=".ui.TermsActivity" android:exported="false" />
 
         <activity android:name=".ui.ExerciseSettingsActivity" android:exported="false" />
 

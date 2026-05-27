@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,10 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
 import com.example.kairos.mobile.data.db.BaselineStats
 import com.example.kairos.mobile.data.db.KairosDatabase
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -44,9 +44,10 @@ class ProfileActivity : ComponentActivity() {
             }
 
             ProfileScreen(
-                baseline = baseline,
-                loading  = loading,
-                onBack   = { finish() }
+                baseline  = baseline,
+                loading   = loading,
+                onTerms   = { TermsActivity.launchForReading(this) },
+                onBack    = { finish() }
             )
         }
     }
@@ -58,6 +59,7 @@ class ProfileActivity : ComponentActivity() {
 fun ProfileScreen(
     baseline: BaselineStats?,
     loading:  Boolean,
+    onTerms:  () -> Unit = {},
     onBack:   () -> Unit
 ) {
     val Background    = Color(0xFF0A0E1A)
@@ -68,12 +70,11 @@ fun ProfileScreen(
     val TextPrimary   = Color(0xFFE2E8F0)
     val TextSecondary = Color(0xFF64748B)
 
-    // Calcular std a partir de M2 (algoritmo de Welford)
     fun std(m2: Double, count: Int): Double =
         if (count < 2) 0.0 else sqrt(m2 / (count - 1))
 
-    val hrStd  = if (baseline != null) std(baseline.hrM2, baseline.hrCount) else 0.0
-    val hrvStd = if (baseline != null) std(baseline.hrvM2, baseline.hrvCount) else 0.0
+    val hrStd        = if (baseline != null) std(baseline.hrM2, baseline.hrCount) else 0.0
+    val hrvStd       = if (baseline != null) std(baseline.hrvM2, baseline.hrvCount) else 0.0
     val isCalibrated = (baseline?.calibrationWindows ?: 0) >= 3
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
@@ -86,12 +87,28 @@ fun ProfileScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text       = "Mi perfil fisiológico",
-                fontSize   = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color      = TextPrimary
-            )
+            // ── Header con ícono de términos ──────────────────────────────────
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text       = "Mi perfil fisiológico",
+                    fontSize   = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = TextPrimary,
+                    modifier   = Modifier.align(Alignment.CenterStart)
+                )
+                IconButton(
+                    onClick  = onTerms,
+                    modifier = Modifier.align(Alignment.TopEnd).size(36.dp)
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.Info,
+                        contentDescription = "Términos de uso",
+                        tint               = Color.White,
+                        modifier           = Modifier.size(20.dp)
+                    )
+                }
+            }
+
             Text(
                 text      = "KAIROS usa estos valores como referencia personal para detectar desviaciones.",
                 fontSize  = 13.sp,
@@ -105,7 +122,6 @@ fun ProfileScreen(
                     CircularProgressIndicator(color = KairosGreen)
                 }
             } else if (!isCalibrated || baseline == null) {
-                // Sin calibrar
                 Box(
                     modifier = Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
@@ -122,7 +138,6 @@ fun ProfileScreen(
                     }
                 }
             } else {
-                // Estado de calibración
                 Box(
                     modifier = Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
@@ -152,42 +167,17 @@ fun ProfileScreen(
                     }
                 }
 
-                // ── Métricas del baseline ─────────────────────────────────────
                 Text("Frecuencia cardíaca basal", fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold, color = TextPrimary)
 
                 Row(modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Media",
-                        value     = "%.1f".format(baseline.hrMean),
-                        unit      = "BPM",
-                        color     = KairosBlue,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Desv. estándar",
-                        value     = "%.1f".format(hrStd),
-                        unit      = "BPM",
-                        color     = KairosBlue,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Muestras",
-                        value     = "${baseline.hrCount}",
-                        unit      = "",
-                        color     = KairosBlue,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
+                    BaselineMetricCard(Modifier.weight(1f), "Media",
+                        "%.1f".format(baseline.hrMean), "BPM", KairosBlue, CardDark, TextPrimary, TextSecondary)
+                    BaselineMetricCard(Modifier.weight(1f), "Desv. estándar",
+                        "%.1f".format(hrStd), "BPM", KairosBlue, CardDark, TextPrimary, TextSecondary)
+                    BaselineMetricCard(Modifier.weight(1f), "Muestras",
+                        "${baseline.hrCount}", "", KairosBlue, CardDark, TextPrimary, TextSecondary)
                 }
 
                 Text("Variabilidad cardíaca (RMSSD)", fontSize = 14.sp,
@@ -195,39 +185,14 @@ fun ProfileScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Media",
-                        value     = "%.1f".format(baseline.hrvMean),
-                        unit      = "ms",
-                        color     = KairosGreen,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Desv. estándar",
-                        value     = "%.1f".format(hrvStd),
-                        unit      = "ms",
-                        color     = KairosGreen,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
-                    BaselineMetricCard(
-                        modifier  = Modifier.weight(1f),
-                        label     = "Muestras",
-                        value     = "${baseline.hrvCount}",
-                        unit      = "",
-                        color     = KairosGreen,
-                        cardColor = CardDark,
-                        textColor = TextPrimary,
-                        subColor  = TextSecondary
-                    )
+                    BaselineMetricCard(Modifier.weight(1f), "Media",
+                        "%.1f".format(baseline.hrvMean), "ms", KairosGreen, CardDark, TextPrimary, TextSecondary)
+                    BaselineMetricCard(Modifier.weight(1f), "Desv. estándar",
+                        "%.1f".format(hrvStd), "ms", KairosGreen, CardDark, TextPrimary, TextSecondary)
+                    BaselineMetricCard(Modifier.weight(1f), "Muestras",
+                        "${baseline.hrvCount}", "", KairosGreen, CardDark, TextPrimary, TextSecondary)
                 }
 
-                // ── Comparación con población WESAD ───────────────────────────
                 Box(
                     modifier = Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
@@ -242,27 +207,17 @@ fun ProfileScreen(
                             fontSize = 11.sp, color = TextSecondary, lineHeight = 16.sp
                         )
                         Divider(color = TextSecondary.copy(alpha = 0.15f))
-
-                        ComparisonRow("HR media",
-                            personal = "%.1f BPM".format(baseline.hrMean),
-                            reference = "72.4 BPM",
-                            textColor = TextPrimary, subColor = TextSecondary)
-                        ComparisonRow("HR desv. estándar",
-                            personal = "%.1f BPM".format(hrStd),
-                            reference = "8.0 BPM",
-                            textColor = TextPrimary, subColor = TextSecondary)
-                        ComparisonRow("RMSSD media",
-                            personal = "%.1f ms".format(baseline.hrvMean),
-                            reference = "51.0 ms",
-                            textColor = TextPrimary, subColor = TextSecondary)
-                        ComparisonRow("RMSSD desv. estándar",
-                            personal = "%.1f ms".format(hrvStd),
-                            reference = "12.0 ms",
-                            textColor = TextPrimary, subColor = TextSecondary)
+                        ComparisonRow("HR media", "%.1f BPM".format(baseline.hrMean),
+                            "72.4 BPM", TextPrimary, TextSecondary)
+                        ComparisonRow("HR desv. estándar", "%.1f BPM".format(hrStd),
+                            "8.0 BPM", TextPrimary, TextSecondary)
+                        ComparisonRow("RMSSD media", "%.1f ms".format(baseline.hrvMean),
+                            "51.0 ms", TextPrimary, TextSecondary)
+                        ComparisonRow("RMSSD desv. estándar", "%.1f ms".format(hrvStd),
+                            "12.0 ms", TextPrimary, TextSecondary)
                     }
                 }
 
-                // ── Qué significa ─────────────────────────────────────────────
                 Box(
                     modifier = Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
@@ -306,22 +261,18 @@ fun BaselineMetricCard(
     subColor:  Color
 ) {
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(cardColor)
-            .padding(12.dp),
+        modifier = modifier.clip(RoundedCornerShape(12.dp))
+            .background(cardColor).padding(12.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(label, fontSize = 10.sp, color = subColor, textAlign = TextAlign.Center,
-                lineHeight = 13.sp)
+            Text(label, fontSize = 10.sp, color = subColor,
+                textAlign = TextAlign.Center, lineHeight = 13.sp)
             Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
-            if (unit.isNotEmpty()) {
-                Text(unit, fontSize = 10.sp, color = subColor)
-            }
+            if (unit.isNotEmpty()) Text(unit, fontSize = 10.sp, color = subColor)
         }
     }
 }
