@@ -38,6 +38,7 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.example.kairos.db.WatchBaseline
+import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.health.InterventionSession
 import com.example.kairos.techniques.ExercisePreference
 import com.example.kairos.techniques.WatchExercisePrefs
@@ -112,6 +113,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendCrisisCancelled() {
+        WatchCrisisDetector.getInstance(this).onUserCancelled()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val nodes = Wearable.getNodeClient(this@MainActivity).connectedNodes.await()

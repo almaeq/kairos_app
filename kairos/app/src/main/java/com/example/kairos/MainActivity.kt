@@ -300,7 +300,7 @@ fun MonitorScreen(
                 Text("👥  Contactos de confianza", fontSize = 13.sp, color = TextSecondary)
             }
             TextButton(onClick = onEpisodes, modifier = Modifier.fillMaxWidth()) {
-                Text("📋 Bitácora de episodios", fontSize = 13.sp, color = TextSecondary)
+                Text("📋 Registro de episodios", fontSize = 13.sp, color = TextSecondary)
             }
             TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
                 Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)

@@ -71,7 +71,7 @@ fun EpisodeLogScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Bitácora de episodios", fontSize = 20.sp,
+            Text("Registro de episodios", fontSize = 20.sp,
                 fontWeight = FontWeight.Bold, color = TextPrimary)
             Text("Últimos 10 episodios detectados.",
                 fontSize = 13.sp, color = TextSecondary)

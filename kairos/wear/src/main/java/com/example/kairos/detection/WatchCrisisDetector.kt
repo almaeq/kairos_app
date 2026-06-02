@@ -99,6 +99,11 @@ class WatchCrisisDetector(private val context: Context) {
         )
     }
 
+    fun onUserCancelled() {
+        consecutivePositiveWindows = 0
+        Log.d("WatchDetector", "Usuario canceló — ventanas consecutivas reseteadas")
+    }
+
     companion object {
         @Volatile private var instance: WatchCrisisDetector? = null
 
