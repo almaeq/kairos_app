@@ -35,4 +35,7 @@ interface KairosDao {
 
     @Query("DELETE FROM baseline_stats")
     suspend fun deleteBaseline()
+
+    @Query("SELECT * FROM crisis_episodes WHERE timestamp >= :since ORDER BY timestamp DESC")
+    suspend fun getEpisodesSince(since: Long): List<CrisisEpisode>
 }

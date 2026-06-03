@@ -13,8 +13,14 @@ object SmsAlertManager {
     private const val TAG = "SmsAlertManager"
 
     private const val SMS_MESSAGE =
-        "🚨 KAIROS: Necesito ayuda. Mi app detectó una crisis de ansiedad y no respondí en 15 segundos. " +
-                "Por favor comunicate conmigo."
+        "🚨 KAIROS - Crisis de ansiedad detectada\n\n" +
+                "Tu contacto de confianza en KAIROS necesita ayuda ahora.\n\n" +
+                "Qué hacer:\n" +
+                "1. Llamale o escribile ya\n" +
+                "2. Hablale con calma, no la apures\n" +
+                "3. Quedáte en línea hasta que se sienta mejor\n" +
+                "Una crisis de pánico no es peligrosa pero necesita acompañamiento. " +
+                "Tu presencia ayuda muchísimo."
 
     // Cooldown de 5 minutos para no abrir la app de SMS múltiples veces por episodio
     private var lastAlertTimestamp = 0L

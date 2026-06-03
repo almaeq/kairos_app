@@ -43,6 +43,7 @@ class EpisodeLogActivity : ComponentActivity() {
             EpisodeLogScreen(
                 episodes = episodes,
                 loading  = loading,
+                onReport = { startActivity(android.content.Intent(this@EpisodeLogActivity, ReportActivity::class.java)) },
                 onBack   = { finish() }
             )
         }
@@ -53,7 +54,8 @@ class EpisodeLogActivity : ComponentActivity() {
 fun EpisodeLogScreen(
     episodes: List<CrisisEpisode>,
     loading:  Boolean,
-    onBack:   () -> Unit
+    onBack:   () -> Unit,
+    onReport: () -> Unit = {},
 ) {
     val Background    = Color(0xFF0A0E1A)
     val CardDark      = Color(0xFF111827)
@@ -71,11 +73,25 @@ fun EpisodeLogScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Registro de episodios", fontSize = 20.sp,
-                fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text("Últimos 10 episodios detectados.",
-                fontSize = 13.sp, color = TextSecondary)
-
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.align(Alignment.CenterStart)) {
+                    Text("Bitácora de episodios", fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text("Últimos 10 episodios detectados.",
+                        fontSize = 13.sp, color = TextSecondary)
+                }
+                TextButton(
+                    onClick  = onReport,
+                    enabled  = episodes.isNotEmpty(),
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    colors   = ButtonDefaults.textButtonColors(
+                        contentColor         = KairosBlue,
+                        disabledContentColor = TextSecondary.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Text("Informe →", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
             if (loading) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center) {
