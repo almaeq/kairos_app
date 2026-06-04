@@ -18,5 +18,5 @@ object WesadThresholds {
     const val ACC_MOVEMENT_THRESHOLD         = 0.12
     const val ANALYSIS_WINDOW_SECONDS        = 60L
     const val MIN_CALIBRATION_WINDOWS        = 3
-    const val CONSECUTIVE_WINDOWS_TO_CONFIRM = 2
+    const val CONSECUTIVE_WINDOWS_TO_CONFIRM = 3
 }

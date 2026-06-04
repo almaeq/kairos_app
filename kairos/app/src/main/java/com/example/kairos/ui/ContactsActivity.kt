@@ -12,7 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -47,19 +49,15 @@ class ContactsActivity : ComponentActivity() {
                 contacts = dao.getActiveContacts()
             }
 
-            // Abre el selector de contactos del sistema
             val contactPickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.PickContact()
             ) { uri: Uri? ->
                 if (uri == null) return@rememberLauncherForActivityResult
-
                 val (name, phone) = resolveContact(uri)
-
                 if (name == null || phone == null) {
                     errorMsg = "Ese contacto no tiene número de teléfono guardado."
                     return@rememberLauncherForActivityResult
                 }
-
                 errorMsg = null
                 lifecycleScope.launch {
                     dao.saveContact(TrustedContact(name = name, phoneNumber = phone))
@@ -82,10 +80,6 @@ class ContactsActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Lee nombre y teléfono del URI devuelto por el picker de contactos.
-     * Limpia el número dejando solo dígitos y el + inicial.
-     */
     private fun resolveContact(uri: Uri): Pair<String?, String?> {
         var name: String? = null
         var phone: String? = null
@@ -105,18 +99,17 @@ class ContactsActivity : ComponentActivity() {
                     ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                     arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
                     "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-                    arrayOf(contactId),
-                    null
+                    arrayOf(contactId), null
                 )?.use { phoneCursor ->
                     if (phoneCursor.moveToFirst()) {
                         val raw = phoneCursor.getString(phoneCursor.getColumnIndexOrThrow(
                             ContactsContract.CommonDataKinds.Phone.NUMBER))
                         phone = raw?.replace(Regex("[^+\\d]"), "")?.let { cleaned ->
                             when {
-                                cleaned.startsWith("+") -> cleaned          // ya tiene código de país
-                                cleaned.startsWith("0") -> "+54${cleaned.substring(1)}" // saca el 0 inicial
-                                cleaned.length == 10    -> "+549$cleaned"    // número local de 10 dígitos
-                                else                    -> cleaned          // dejar como está
+                                cleaned.startsWith("+") -> cleaned
+                                cleaned.startsWith("0") -> "+54${cleaned.substring(1)}"
+                                cleaned.length == 10    -> "+549$cleaned"
+                                else                    -> cleaned
                             }
                         }
                     }
@@ -142,22 +135,26 @@ fun ContactsScreen(
     val Background    = Color(0xFF0A0E1A)
     val CardDark      = Color(0xFF111827)
     val KairosGreen   = Color(0xFF00E5A0)
+    val KairosBlue    = Color(0xFF3B82F6)
+    val KairosOrange  = Color(0xFFF59E0B)
     val KairosRed     = Color(0xFFEF4444)
     val TextPrimary   = Color(0xFFE2E8F0)
     val TextSecondary = Color(0xFF64748B)
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text("Contactos de confianza", fontSize = 20.sp,
                 fontWeight = FontWeight.Bold, color = TextPrimary)
-
             Text(
-                text      = "Durante una crisis, estas personas recibirán un SMS automático si no respondés en 30 segundos.",
+                text      = "Durante una crisis, estas personas recibirán un SMS si no respondés en 30 segundos.",
                 fontSize  = 13.sp, color = TextSecondary, lineHeight = 18.sp
             )
 
@@ -171,6 +168,7 @@ fun ContactsScreen(
                 Text(text = it, fontSize = 12.sp, color = KairosRed)
             }
 
+            // ── Lista de contactos ────────────────────────────────────────────
             if (contacts.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth()
@@ -182,8 +180,8 @@ fun ContactsScreen(
                         fontSize = 13.sp, color = TextSecondary)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(contacts) { contact ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    contacts.forEach { contact ->
                         Row(
                             modifier = Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -205,7 +203,80 @@ fun ContactsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            // ── SMS que recibirá el contacto ──────────────────────────────────
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardDark)
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("📱 Mensaje que recibirán",
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = KairosBlue)
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF1E293B))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "🚨 KAIROS - Crisis de ansiedad detectada\n\n" +
+                                    "Tu contacto de confianza en KAIROS necesita ayuda ahora.\n\n" +
+                                    "Qué hacer:\n" +
+                                    "1. Llamale o escribile ya\n" +
+                                    "2. Hablale con calma, no la apures\n" +
+                                    "3. Quedáte en línea hasta que se sienta mejor\n" +
+                                    "Una crisis de pánico no es peligrosa pero necesita acompañamiento. " +
+                                    "Tu presencia ayuda muchísimo.",
+                            fontSize  = 12.sp,
+                            color     = TextPrimary,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
+
+            // ── Instrucciones para el contacto ────────────────────────────────
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(KairosOrange.copy(alpha = 0.08f))
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("💡 Qué pedirle a tu contacto que haga",
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = KairosOrange)
+                    Text(
+                        text      = "Compartí estas instrucciones con las personas que agregues como contactos de confianza:",
+                        fontSize  = 12.sp,
+                        color     = TextSecondary,
+                        lineHeight = 17.sp
+                    )
+
+                    InstructionItem(
+                        numero = "1",
+                        texto  = "Llamame o escribime de inmediato cuando recibas el mensaje.",
+                        color  = KairosOrange
+                    )
+                    InstructionItem(
+                        numero = "2",
+                        texto  = "Hablame con calma y voz tranquila. No me apures ni me digas que me calme.",
+                        color  = KairosOrange
+                    )
+                    InstructionItem(
+                        numero = "3",
+                        texto  = "Si atiendo, quedate en línea conmigo hasta que me sienta mejor.",
+                        color  = KairosOrange
+                    )
+                    InstructionItem(
+                        numero = "4",
+                        texto  = "No es necesario que hagas nada heroico — solo estar presente ayuda muchísimo.",
+                        color  = KairosOrange
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Button(
                 onClick  = onAdd,
@@ -230,5 +301,30 @@ fun ContactsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
         }
+    }
+}
+
+@Composable
+fun InstructionItem(numero: String, texto: String, color: Color) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment     = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(numero, fontSize = 11.sp, color = color, fontWeight = FontWeight.Bold)
+        }
+        Text(
+            text      = texto,
+            fontSize  = 12.sp,
+            color     = Color(0xFFE2E8F0),
+            lineHeight = 17.sp,
+            modifier  = Modifier.weight(1f)
+        )
     }
 }

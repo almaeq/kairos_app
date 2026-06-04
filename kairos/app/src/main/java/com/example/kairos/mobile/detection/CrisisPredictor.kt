@@ -17,8 +17,8 @@ object CrisisPredictor {
 
     private const val TAG = "CrisisPredictor"
 
-    const val THRESHOLD_PRE_ALERT = 0.45
-    const val THRESHOLD_CRISIS    = 0.65
+    const val THRESHOLD_PRE_ALERT = 0.55
+    const val THRESHOLD_CRISIS    = 0.75
 
     data class PredictionResult(
         val probCrisis: Double,

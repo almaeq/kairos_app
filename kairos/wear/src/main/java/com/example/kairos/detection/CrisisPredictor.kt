@@ -22,10 +22,10 @@ object CrisisPredictor {
     private const val TAG = "CrisisPredictor"
 
     // Umbral para disparar Pre-Alerta (se muestra en el reloj, espera confirmación)
-    const val THRESHOLD_PRE_ALERT = 0.45
+    const val THRESHOLD_PRE_ALERT = 0.55
 
     // Umbral para activar Modo Crisis completo (SMS + ejercicios)
-    const val THRESHOLD_CRISIS = 0.65
+    const val THRESHOLD_CRISIS = 0.75
 
     data class PredictionResult(
         val probCrisis: Double,       // 0.0 a 1.0

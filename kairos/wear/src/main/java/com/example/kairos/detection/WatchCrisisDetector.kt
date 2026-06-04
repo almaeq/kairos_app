@@ -54,7 +54,7 @@ class WatchCrisisDetector(private val context: Context) {
 
         Log.d("WatchDetector", "p(crisis)=${"%.2f".format(prediction.probCrisis)} " +
                 "ventanas_positivas=$consecutivePositiveWindows " +
-                "crisis=$confirmedCrisis filtro_mov==$movementFilterPassed")
+                "crisis=$confirmedCrisis filtro_mov=$movementFilterPassed")
 
         return WatchDetectionResult(
             isCrisisDetected     = confirmedCrisis,
@@ -97,6 +97,11 @@ class WatchCrisisDetector(private val context: Context) {
             hrvM2              = hrvBaseline.m2,
             calibrationWindows = calibrationWindows
         )
+    }
+
+    fun onUserCancelled() {
+        consecutivePositiveWindows = 0
+        Log.d("WatchDetector", "Usuario canceló — ventanas consecutivas reseteadas")
     }
 
     companion object {
