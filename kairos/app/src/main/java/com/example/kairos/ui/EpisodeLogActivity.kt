@@ -1,13 +1,14 @@
 package com.example.kairos.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,10 +42,11 @@ class EpisodeLogActivity : ComponentActivity() {
             }
 
             EpisodeLogScreen(
-                episodes = episodes,
-                loading  = loading,
-                onReport = { startActivity(android.content.Intent(this@EpisodeLogActivity, ReportActivity::class.java)) },
-                onBack   = { finish() }
+                episodes    = episodes,
+                loading     = loading,
+                onConfirmed = { startActivity(Intent(this@EpisodeLogActivity, ConfirmedEpisodesActivity::class.java)) },
+                onReport    = { startActivity(Intent(this@EpisodeLogActivity, ReportActivity::class.java)) },
+                onBack      = { finish() }
             )
         }
     }
@@ -52,19 +54,19 @@ class EpisodeLogActivity : ComponentActivity() {
 
 @Composable
 fun EpisodeLogScreen(
-    episodes: List<CrisisEpisode>,
-    loading:  Boolean,
-    onBack:   () -> Unit,
-    onReport: () -> Unit = {},
+    episodes:    List<CrisisEpisode>,
+    loading:     Boolean,
+    onConfirmed: () -> Unit = {},
+    onReport:    () -> Unit = {},
+    onBack:      () -> Unit
 ) {
     val Background    = Color(0xFF0A0E1A)
     val CardDark      = Color(0xFF111827)
     val KairosRed     = Color(0xFFEF4444)
     val KairosGreen   = Color(0xFF00E5A0)
-    val KairosOrange  = Color(0xFFF59E0B)
     val KairosBlue    = Color(0xFF3B82F6)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
@@ -74,10 +76,20 @@ fun EpisodeLogScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.align(Alignment.CenterStart)) {
-                    Text("Bitácora de episodios", fontSize = 20.sp,
+                IconButton(
+                    onClick  = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(36.dp)
+                ) {
+                    Text("←", fontSize = 20.sp, color = TextSecondary)
+                }
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 44.dp)  // ← espacio para la flecha
+                ) {
+                    Text("Registro de episodios", fontSize = 20.sp,
                         fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text("Últimos 10 episodios detectados.",
+                    Text("Últimos 50 episodios detectados.",
                         fontSize = 13.sp, color = TextSecondary)
                 }
                 TextButton(
@@ -92,6 +104,7 @@ fun EpisodeLogScreen(
                     Text("Informe →", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
+
             if (loading) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center) {
@@ -114,36 +127,54 @@ fun EpisodeLogScreen(
                     )
                 }
             } else {
-                // Resumen rápido
+                val confirmed = episodes.count { it.wasConfirmed }
+                val cancelled = episodes.count { !it.wasConfirmed }
+                val avgHr     = episodes.map { it.hrBpm }.average()
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val confirmed = episodes.count { it.wasConfirmed }
-                    val cancelled = episodes.count { !it.wasConfirmed }
-                    val avgHr     = episodes.map { it.hrBpm }.average()
-
-                    SummaryCard(modifier = Modifier.weight(1f),
-                        value = "$confirmed", label = "Confirmadas",
-                        color = KairosGreen, cardColor = CardDark, textColor = TextPrimary, subColor = TextSecondary)
-                    SummaryCard(modifier = Modifier.weight(1f),
-                        value = "$cancelled", label = "Canceladas",
-                        color = KairosOrange, cardColor = CardDark, textColor = TextPrimary, subColor = TextSecondary)
-                    SummaryCard(modifier = Modifier.weight(1f),
-                        value = "%.0f".format(avgHr), label = "HR media",
-                        color = KairosBlue, cardColor = CardDark, textColor = TextPrimary, subColor = TextSecondary)
+                    // Confirmadas — tappeable, lleva al historial completo
+                    SummaryCard(
+                        modifier  = Modifier.weight(1f).clickable { onConfirmed() },
+                        value     = "$confirmed",
+                        label     = "Confirmadas ↗",
+                        color     = KairosGreen,
+                        cardColor = CardDark,
+                        textColor = TextPrimary,
+                        subColor  = TextSecondary
+                    )
+                    SummaryCard(
+                        modifier  = Modifier.weight(1f),
+                        value     = "$cancelled",
+                        label     = "Canceladas",
+                        color     = KairosRed,
+                        cardColor = CardDark,
+                        textColor = TextPrimary,
+                        subColor  = TextSecondary
+                    )
+                    SummaryCard(
+                        modifier  = Modifier.weight(1f),
+                        value     = "%.0f".format(avgHr),
+                        label     = "HR media",
+                        color     = KairosBlue,
+                        cardColor = CardDark,
+                        textColor = TextPrimary,
+                        subColor  = TextSecondary
+                    )
                 }
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(episodes) { episode ->
                         EpisodeCard(
-                            episode   = episode,
-                            cardColor = CardDark,
-                            textColor = TextPrimary,
-                            subColor  = TextSecondary,
-                            redColor  = KairosRed,
-                            greenColor = KairosGreen,
-                            orangeColor = KairosOrange
+                            episode     = episode,
+                            cardColor   = CardDark,
+                            textColor   = TextPrimary,
+                            subColor    = TextSecondary,
+                            redColor    = KairosRed,
+                            greenColor  = KairosGreen,
+                            orangeColor = KairosGreen
                         )
                     }
                 }
@@ -162,18 +193,18 @@ fun EpisodeLogScreen(
 
 @Composable
 fun EpisodeCard(
-    episode:    CrisisEpisode,
-    cardColor:  Color,
-    textColor:  Color,
-    subColor:   Color,
-    redColor:   Color,
-    greenColor: Color,
+    episode:     CrisisEpisode,
+    cardColor:   Color,
+    textColor:   Color,
+    subColor:    Color,
+    redColor:    Color,
+    greenColor:  Color,
     orangeColor: Color
 ) {
-    val statusColor = if (episode.wasConfirmed) greenColor else orangeColor
+    val statusColor = if (episode.wasConfirmed) greenColor else redColor
     val statusText  = if (episode.wasConfirmed) "Confirmada" else "Cancelada"
     val durationText = when {
-        episode.durationSeconds < 60  -> "${episode.durationSeconds}s"
+        episode.durationSeconds < 60 -> "${episode.durationSeconds}s"
         else -> "${episode.durationSeconds / 60}m ${episode.durationSeconds % 60}s"
     }
 
@@ -189,12 +220,8 @@ fun EpisodeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text       = formatDateTime(episode.timestamp),
-                    fontSize   = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color      = textColor
-                )
+                Text(formatDateTime(episode.timestamp), fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold, color = textColor)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
@@ -205,14 +232,13 @@ fun EpisodeCard(
                         fontWeight = FontWeight.SemiBold)
                 }
             }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                EpisodeStat("HR", "%.0f BPM".format(episode.hrBpm), subColor, textColor)
-                EpisodeStat("RMSSD", "%.1f ms".format(episode.rmssdMs), subColor, textColor)
-                EpisodeStat("Duración", durationText, subColor, textColor)
+                EpisodeStat("HR",       "%.0f BPM".format(episode.hrBpm),  subColor, textColor)
+                EpisodeStat("RMSSD",    "%.1f ms".format(episode.rmssdMs),  subColor, textColor)
+                EpisodeStat("Duración", durationText,                        subColor, textColor)
             }
         }
     }
@@ -237,8 +263,10 @@ fun SummaryCard(
     subColor:  Color
 ) {
     Box(
-        modifier = modifier.clip(RoundedCornerShape(12.dp))
-            .background(cardColor).padding(12.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardColor)
+            .padding(12.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

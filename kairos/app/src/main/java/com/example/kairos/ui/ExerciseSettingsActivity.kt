@@ -63,7 +63,7 @@ fun ExerciseSettingsScreen(
     val KairosGreen   = Color(0xFF00E5A0)
     val KairosBlue    = Color(0xFF3B82F6)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     Box(
         modifier = Modifier.fillMaxSize().background(Background)
@@ -74,12 +74,23 @@ fun ExerciseSettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text       = "Ejercicio de intervención",
-                fontSize   = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color      = TextPrimary
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick  = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(36.dp)
+                ) {
+                    Text("←", fontSize = 20.sp, color = TextSecondary)
+                }
+                Text(
+                    text       = "Ejercicio de intervención",
+                    fontSize   = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = TextPrimary,
+                    modifier   = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 44.dp)  // ← deja espacio para la flecha
+                )
+            }
             Text(
                 text      = "Elegí qué ejercicio se activa automáticamente cuando se detecta una crisis. Esta preferencia se sincroniza con tu reloj.",
                 fontSize  = 13.sp,

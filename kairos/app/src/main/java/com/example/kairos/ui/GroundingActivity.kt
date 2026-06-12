@@ -68,7 +68,7 @@ fun GroundingPhoneScreen(
     val Background    = Color(0xFF0A0E1A)
     val CardDark      = Color(0xFF111827)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     val step = GROUNDING_STEPS.find { it.number == currentStep }
     val isFinished = currentStep == 0

@@ -40,6 +40,7 @@ import com.example.kairos.ui.ContactsActivity
 import com.example.kairos.ui.ExerciseSettingsActivity
 import com.example.kairos.ui.ProfileActivity
 import com.example.kairos.ui.EpisodeLogActivity
+import com.example.kairos.ui.OnboardingActivity
 import com.example.kairos.ui.TermsActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,6 +67,11 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (!OnboardingActivity.hasCompleted(this)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
         if (!TermsActivity.hasAccepted(this)) {
             TermsActivity.launchForOnboarding(this)
             finish()
@@ -150,7 +156,7 @@ fun MonitorScreen(
     val KairosOrange   = Color(0xFFF59E0B)
     val KairosRed      = Color(0xFFEF4444)
     val TextPrimary    = Color(0xFFE2E8F0)
-    val TextSecondary  = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     val stateColor by animateColorAsState(
         targetValue = when (monitorData.crisisState) {
@@ -307,6 +313,7 @@ fun MonitorScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
         }
     }
 }

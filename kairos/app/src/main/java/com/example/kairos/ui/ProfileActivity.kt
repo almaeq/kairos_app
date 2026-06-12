@@ -68,7 +68,7 @@ fun ProfileScreen(
     val KairosBlue    = Color(0xFF3B82F6)
     val KairosOrange  = Color(0xFFF59E0B)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFFCBD5E1)
 
     fun std(m2: Double, count: Int): Double =
         if (count < 2) 0.0 else sqrt(m2 / (count - 1))
@@ -89,12 +89,20 @@ fun ProfileScreen(
 
             // ── Header con ícono de términos ──────────────────────────────────
             Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick  = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(36.dp)
+                ) {
+                    Text("←", fontSize = 20.sp, color = TextSecondary)
+                }
                 Text(
                     text       = "Mi perfil fisiológico",
                     fontSize   = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color      = TextPrimary,
-                    modifier   = Modifier.align(Alignment.CenterStart)
+                    modifier   = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 44.dp)
                 )
                 IconButton(
                     onClick  = onTerms,

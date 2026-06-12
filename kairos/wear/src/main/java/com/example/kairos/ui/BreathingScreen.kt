@@ -46,7 +46,7 @@ fun BreathingScreen(
     val KairTeal      = Color(0xFF06B6D4)
     val Background    = Color(0xFF0A0E1A)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     var currentPhase by remember { mutableStateOf<BreathPhase?>(null) }
     var currentCycle by remember { mutableIntStateOf(0) }
