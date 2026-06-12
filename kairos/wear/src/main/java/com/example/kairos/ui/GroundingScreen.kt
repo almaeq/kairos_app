@@ -88,7 +88,7 @@ fun GroundingScreen(
     val KairosBlue    = Color(0xFF3B82F6)
     val Background    = Color(0xFF0A0E1A)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     var currentStepIndex by remember { mutableIntStateOf(-1) }
     var secondsLeft      by remember { mutableIntStateOf(5) }

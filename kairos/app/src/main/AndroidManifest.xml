@@ -67,6 +67,10 @@
 
         <activity android:name=".ui.ReportActivity" android:exported="false" />
 
+        <activity android:name=".ui.OnboardingActivity" android:exported="false" />
+
+        <activity android:name=".ui.ConfirmedEpisodesActivity" android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

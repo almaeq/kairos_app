@@ -80,7 +80,7 @@ fun ReportScreen(
     val KairosOrange  = Color(0xFFF59E0B)
     val KairosRed     = Color(0xFFEF4444)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     fun std(m2: Double, count: Int) =
         if (count < 2) 0.0 else sqrt(m2 / (count - 1))
@@ -302,6 +302,26 @@ $baselineSection
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
+
+// ── Header con flecha ─────────────────────────────────────────────────
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick  = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(36.dp)
+                ) {
+                    Text("←", fontSize = 20.sp, color = TextSecondary)
+                }
+                Text(
+                    text       = "Reporte semanal",
+                    fontSize   = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = TextPrimary,
+                    modifier   = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 44.dp)
+                )
+            }
+
 
             Box(modifier = Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))

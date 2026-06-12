@@ -78,6 +78,7 @@ object EpisodeTracker {
                         wasConfirmed    = wasConfirmed
                     )
                 )
+                KairosDatabase.getInstance(context).kairosDao().keepLatestCancelledEpisodes()
                 Log.d(TAG, "Episodio guardado en Room ✅ HR=$hr RMSSD=$rmssd")
             } catch (e: Exception) {
                 Log.e(TAG, "Error guardando episodio: ${e.message}")

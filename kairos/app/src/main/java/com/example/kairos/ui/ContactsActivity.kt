@@ -75,7 +75,8 @@ class ContactsActivity : ComponentActivity() {
                         dao.deleteContact(contact)
                         contacts = dao.getActiveContacts()
                     }
-                }
+                },
+                onBack      = { finish() }   // ← agregar
             )
         }
     }
@@ -130,6 +131,7 @@ fun ContactsScreen(
     maxContacts: Int,
     errorMsg:    String?,
     onAdd:       () -> Unit,
+    onBack:      () -> Unit = {},
     onDelete:    (TrustedContact) -> Unit
 ) {
     val Background    = Color(0xFF0A0E1A)
@@ -139,7 +141,7 @@ fun ContactsScreen(
     val KairosOrange  = Color(0xFFF59E0B)
     val KairosRed     = Color(0xFFEF4444)
     val TextPrimary   = Color(0xFFE2E8F0)
-    val TextSecondary = Color(0xFF64748B)
+    val TextSecondary = Color(0xFF94A3B8)
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
@@ -151,8 +153,23 @@ fun ContactsScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Contactos de confianza", fontSize = 20.sp,
-                fontWeight = FontWeight.Bold, color = TextPrimary)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick  = onBack,
+                    modifier = Modifier.align(Alignment.CenterStart).size(36.dp)
+                ) {
+                    Text("←", fontSize = 20.sp, color = TextSecondary)
+                }
+                Text(
+                    text       = "Contactos de Confianza",
+                    fontSize   = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = TextPrimary,
+                    modifier   = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 44.dp)  // ← deja espacio para la flecha
+                )
+            }
             Text(
                 text      = "Durante una crisis, estas personas recibirán un SMS si no respondés en 30 segundos.",
                 fontSize  = 13.sp, color = TextSecondary, lineHeight = 18.sp
