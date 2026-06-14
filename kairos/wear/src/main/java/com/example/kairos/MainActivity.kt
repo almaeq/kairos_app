@@ -40,6 +40,7 @@ import androidx.wear.compose.material.TimeText
 import com.example.kairos.db.WatchBaseline
 import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.health.InterventionSession
+import com.example.kairos.services.KairosWatchService
 import com.example.kairos.techniques.ExercisePreference
 import com.example.kairos.techniques.WatchExercisePrefs
 import com.example.kairos.ui.BreathingScreen

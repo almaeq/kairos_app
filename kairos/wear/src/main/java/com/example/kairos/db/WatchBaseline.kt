@@ -3,7 +3,7 @@ package com.example.kairos.db
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.example.kairos.KairosWatchService
+import com.example.kairos.services.KairosWatchService
 import com.example.kairos.detection.WatchCrisisDetector
 import com.example.kairos.detection.WesadThresholds
 import com.example.kairos.ui.WatchMonitorState

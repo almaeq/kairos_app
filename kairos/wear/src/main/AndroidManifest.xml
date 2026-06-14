@@ -38,23 +38,12 @@
 
         <!-- foregroundServiceType="health" para que Wear OS no lo throttlee -->
         <service
-            android:name=".KairosWatchService"
+            android:name=".services.KairosWatchService"
             android:exported="false"
             android:foregroundServiceType="health" />
 
-        <service
-            android:name=".KairosMessageListener"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
-                <data
-                    android:host="*"
-                    android:pathPrefix="/kairos"
-                    android:scheme="wear" />
-            </intent-filter>
-        </service>
 
-        <service android:name=".KairosDataListener"
+        <service android:name=".services.KairosDataListener"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
