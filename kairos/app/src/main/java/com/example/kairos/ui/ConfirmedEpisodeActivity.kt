@@ -24,6 +24,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Activity que muestra el historial completo de crisis confirmadas por el usuario.
+ *
+ * A diferencia de los episodios cancelados (falsos positivos), los episodios confirmados
+ * nunca se eliminan automáticamente de la base de datos, garantizando que el historial
+ * clínico esté siempre disponible para el usuario y su terapeuta.
+ *
+ * Carga los episodios una sola vez al iniciar via [LaunchedEffect], ya que esta pantalla
+ * es de solo lectura y no requiere actualizaciones en tiempo real.
+ */
 class ConfirmedEpisodesActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +44,8 @@ class ConfirmedEpisodesActivity : ComponentActivity() {
             var episodes by remember { mutableStateOf<List<CrisisEpisode>>(emptyList()) }
             var loading  by remember { mutableStateOf(true) }
 
+            // Carga única al montar la pantalla — no necesita Flow porque los datos
+            // confirmados no cambian mientras el usuario está en esta pantalla
             LaunchedEffect(Unit) {
                 episodes = dao.getAllConfirmedEpisodes()
                 loading  = false
@@ -48,6 +60,18 @@ class ConfirmedEpisodesActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Pantalla del historial de crisis confirmadas.
+ *
+ * Muestra tres estados según la combinación de [loading] y [episodes]:
+ * - **Cargando:** indicador circular mientras se leen los datos de Room.
+ * - **Vacío:** mensaje informativo si no hay crisis confirmadas todavía.
+ * - **Con datos:** resumen de total + lista de tarjetas con métricas por episodio.
+ *
+ * @param episodes Lista de episodios confirmados ordenados por fecha descendente.
+ * @param loading `true` mientras se realiza la consulta a Room.
+ * @param onBack Callback para cerrar la pantalla y volver a la anterior.
+ */
 @Composable
 fun ConfirmedEpisodesScreen(
     episodes: List<CrisisEpisode>,
@@ -62,11 +86,12 @@ fun ConfirmedEpisodesScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier            = Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Header con botón de retroceso y título alineados en la misma fila
             Box(modifier = Modifier.fillMaxWidth()) {
                 IconButton(
                     onClick  = onBack,
@@ -81,64 +106,82 @@ fun ConfirmedEpisodesScreen(
                     color      = TextPrimary,
                     modifier   = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = 44.dp)  // ← deja espacio para la flecha
+                        .padding(start = 44.dp)
                 )
             }
+
             Text(
                 text     = "Historial completo — estos episodios nunca se borran.",
                 fontSize = 13.sp,
                 color    = TextSecondary
             )
 
-            if (loading) {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = KairosGreen)
-                }
-            } else if (episodes.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CardDark)
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text      = "No hay crisis confirmadas todavía.",
-                        fontSize  = 13.sp,
-                        color     = TextSecondary,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                // Resumen
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(KairosGreen.copy(alpha = 0.08f))
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            when {
+                loading -> {
+                    Box(
+                        modifier         = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Total de crisis confirmadas",
-                            fontSize = 13.sp, color = TextSecondary)
-                        Text("${episodes.size}",
-                            fontSize = 22.sp, fontWeight = FontWeight.Bold, color = KairosGreen)
+                        CircularProgressIndicator(color = KairosGreen)
                     }
                 }
 
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(episodes) { episode ->
-                        ConfirmedEpisodeCard(
-                            episode   = episode,
-                            cardColor = CardDark,
-                            textColor = TextPrimary,
-                            subColor  = TextSecondary,
-                            redColor  = KairosGreen
+                episodes.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CardDark)
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text      = "No hay crisis confirmadas todavía.",
+                            fontSize  = 13.sp,
+                            color     = TextSecondary,
+                            textAlign = TextAlign.Center
                         )
+                    }
+                }
+
+                else -> {
+                    // Card de resumen con el total de crisis confirmadas
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(KairosGreen.copy(alpha = 0.08f))
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Total de crisis confirmadas",
+                                fontSize = 13.sp,
+                                color    = TextSecondary
+                            )
+                            Text(
+                                "${episodes.size}",
+                                fontSize   = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color      = KairosGreen
+                            )
+                        }
+                    }
+
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(episodes) { episode ->
+                            ConfirmedEpisodeCard(
+                                episode   = episode,
+                                cardColor = CardDark,
+                                textColor = TextPrimary,
+                                subColor  = TextSecondary,
+                                redColor  = KairosGreen
+                            )
+                        }
                     }
                 }
             }
@@ -154,6 +197,18 @@ fun ConfirmedEpisodesScreen(
     }
 }
 
+/**
+ * Tarjeta que muestra las métricas de un episodio de crisis confirmado.
+ *
+ * Muestra fecha y hora del episodio, badge "Confirmada", y las tres métricas
+ * clave: HR (BPM), RMSSD (ms) y duración del episodio.
+ *
+ * @param episode Episodio a mostrar.
+ * @param cardColor Color de fondo de la tarjeta.
+ * @param textColor Color del texto principal.
+ * @param subColor Color del texto secundario (labels de métricas).
+ * @param redColor Color de acento para el badge de confirmación.
+ */
 @Composable
 fun ConfirmedEpisodeCard(
     episode:   CrisisEpisode,
@@ -162,22 +217,24 @@ fun ConfirmedEpisodeCard(
     subColor:  Color,
     redColor:  Color
 ) {
+    // Formateamos la duración en formato legible: segundos si < 1 minuto, mm:ss si no
     val durationText = when {
         episode.durationSeconds < 60 -> "${episode.durationSeconds}s"
         else -> "${episode.durationSeconds / 60}m ${episode.durationSeconds % 60}s"
     }
 
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(cardColor)
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
                     text       = formatConfirmedDateTime(episode.timestamp),
@@ -191,23 +248,35 @@ fun ConfirmedEpisodeCard(
                         .background(redColor.copy(alpha = 0.15f))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("Confirmada", fontSize = 11.sp,
-                        color = redColor, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Confirmada",
+                        fontSize   = 11.sp,
+                        color      = redColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                ConfirmedEpisodeStat("HR", "%.0f BPM".format(episode.hrBpm), subColor, textColor)
-                ConfirmedEpisodeStat("RMSSD", "%.1f ms".format(episode.rmssdMs), subColor, textColor)
-                ConfirmedEpisodeStat("Duración", durationText, subColor, textColor)
+                ConfirmedEpisodeStat("HR",       "%.0f BPM".format(episode.hrBpm),   subColor, textColor)
+                ConfirmedEpisodeStat("RMSSD",    "%.1f ms".format(episode.rmssdMs),  subColor, textColor)
+                ConfirmedEpisodeStat("Duración", durationText,                        subColor, textColor)
             }
         }
     }
 }
 
+/**
+ * Composable auxiliar que muestra una métrica con su label y valor.
+ *
+ * @param label Nombre de la métrica (por ejemplo: "HR", "RMSSD", "Duración").
+ * @param value Valor formateado de la métrica (por ejemplo: "82 BPM").
+ * @param subColor Color del label.
+ * @param textColor Color del valor.
+ */
 @Composable
 fun ConfirmedEpisodeStat(label: String, value: String, subColor: Color, textColor: Color) {
     Column {
@@ -216,6 +285,12 @@ fun ConfirmedEpisodeStat(label: String, value: String, subColor: Color, textColo
     }
 }
 
+/**
+ * Formatea un timestamp en milisegundos a una cadena de fecha y hora legible.
+ *
+ * @param epochMs Timestamp en milisegundos (epoch).
+ * @return Fecha formateada como "dd/MM/yyyy HH:mm" en el locale del dispositivo.
+ */
 private fun formatConfirmedDateTime(epochMs: Long): String {
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
     return sdf.format(Date(epochMs))

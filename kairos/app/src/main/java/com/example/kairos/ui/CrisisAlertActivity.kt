@@ -28,13 +28,41 @@ import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.mobile.data.db.TrustedContact
 import kotlinx.coroutines.launch
 
+/**
+ * Activity de alerta de crisis que permite al usuario notificar manualmente
+ * a sus contactos de confianza via SMS.
+ *
+ * Se lanza desde [KairosPhoneListener] cuando llega el mensaje `/kairos/crisis/confirmada`
+ * desde el reloj. A diferencia del envío automático de [SmsAlertManager], esta pantalla
+ * requiere que el usuario toque cada botón para abrir la app de mensajes — dándole
+ * control explícito sobre a quién notifica.
+ *
+ * **Seguimiento de envíos:**
+ * [sentSet] rastrea qué contactos ya fueron notificados en esta sesión de crisis.
+ * Cuando todos los contactos tienen el estado "enviado", se muestra el mensaje
+ * de confirmación y el botón cambia a "Cerrar".
+ */
 class CrisisAlertActivity : ComponentActivity() {
 
     companion object {
+
+        /**
+         * Mensaje SMS prellenado para el contacto de confianza.
+         * Más conciso que el mensaje de [SmsAlertManager] porque en esta pantalla
+         * el usuario tiene control directo sobre el envío.
+         */
         private const val SMS_MESSAGE =
             "🚨 KAIROS: Necesito ayuda. Mi app detectó una crisis de ansiedad y no respondí en 30 segundos. " +
                     "Por favor comunicate conmigo."
 
+        /**
+         * Lanza la Activity desde cualquier contexto.
+         *
+         * [Intent.FLAG_ACTIVITY_CLEAR_TOP] evita apilar múltiples instancias
+         * si se reciben mensajes duplicados desde el reloj durante el mismo episodio.
+         *
+         * @param context Contexto desde el que se lanza la Activity.
+         */
         fun launch(context: Context) {
             val intent = Intent(context, CrisisAlertActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -50,7 +78,10 @@ class CrisisAlertActivity : ComponentActivity() {
 
         setContent {
             var contacts by remember { mutableStateOf<List<TrustedContact>>(emptyList()) }
-            val sentSet  = remember { mutableStateSetOf<Int>() }
+
+            // Set mutable de IDs de contactos ya notificados en esta sesión
+            // Se usa mutableStateSetOf para que Compose recomponga al agregar un ID
+            val sentSet = remember { mutableStateSetOf<Int>() }
 
             LaunchedEffect(Unit) {
                 contacts = dao.getActiveContacts()
@@ -60,6 +91,7 @@ class CrisisAlertActivity : ComponentActivity() {
                 contacts = contacts,
                 sentSet  = sentSet,
                 onSendTo = { contact ->
+                    // Normalización del número argentino: +549... → +54...
                     val phone = contact.phoneNumber.let { num ->
                         if (num.startsWith("+549")) "+54${num.substring(4)}" else num
                     }
@@ -78,6 +110,21 @@ class CrisisAlertActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Pantalla de alerta de crisis con botones de notificación por contacto.
+ *
+ * Muestra un botón por cada contacto activo. Al presionarlo, abre la app de SMS
+ * nativa con el número y el mensaje prellenados. El botón cambia visualmente
+ * a estado "enviado" (verde) después de ser presionado.
+ *
+ * Cuando todos los contactos fueron notificados ([allSent]), muestra un banner
+ * de confirmación y el botón de cierre cambia de "Omitir" a "Cerrar".
+ *
+ * @param contacts Lista de contactos de confianza activos.
+ * @param sentSet Conjunto de IDs de contactos ya notificados en esta sesión.
+ * @param onSendTo Callback para abrir la app de SMS con el contacto seleccionado.
+ * @param onDismiss Callback para cerrar la pantalla.
+ */
 @Composable
 fun CrisisAlertScreen(
     contacts:  List<TrustedContact>,
@@ -92,8 +139,10 @@ fun CrisisAlertScreen(
     val TextPrimary   = Color(0xFFE2E8F0)
     val TextSecondary = Color(0xFF94A3B8)
 
+    // true cuando hay al menos un contacto y todos fueron notificados
     val allSent = contacts.isNotEmpty() && contacts.all { sentSet.contains(it.id) }
 
+    // Animación de pulso del ícono de alerta — llama la atención del usuario
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue  = 1f,
@@ -106,7 +155,7 @@ fun CrisisAlertScreen(
     )
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Background),
+        modifier         = Modifier.fillMaxSize().background(Background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -118,7 +167,7 @@ fun CrisisAlertScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Ícono pulsante
+            // Ícono pulsante de alerta
             Box(
                 modifier = Modifier
                     .size(80.dp)
@@ -138,10 +187,10 @@ fun CrisisAlertScreen(
             )
 
             Text(
-                text      = "Avisá a tus contactos de confianza.\nTocá cada botón para abrir el mensaje listo para enviar.",
-                fontSize  = 13.sp,
-                color     = TextSecondary,
-                textAlign = TextAlign.Center,
+                text       = "Avisá a tus contactos de confianza.\nTocá cada botón para abrir el mensaje listo para enviar.",
+                fontSize   = 13.sp,
+                color      = TextSecondary,
+                textAlign  = TextAlign.Center,
                 lineHeight = 18.sp
             )
 
@@ -166,6 +215,8 @@ fun CrisisAlertScreen(
             } else {
                 contacts.forEach { contact ->
                     val yaEnviado = sentSet.contains(contact.id)
+                    // El botón se deshabilita visualmente después del primer toque
+                    // pero no bloquea la interacción — el usuario podría querer reabrir el SMS
                     Button(
                         onClick  = { if (!yaEnviado) onSendTo(contact) },
                         modifier = Modifier
@@ -178,9 +229,9 @@ fun CrisisAlertScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier              = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment     = Alignment.CenterVertically
                         ) {
                             Column(horizontalAlignment = Alignment.Start) {
                                 Text(
@@ -195,6 +246,7 @@ fun CrisisAlertScreen(
                                     color    = TextSecondary
                                 )
                             }
+                            // Indicador de estado: "Enviar →" o "✓ Listo"
                             Text(
                                 text     = if (yaEnviado) "✓ Listo" else "Enviar →",
                                 fontSize = 13.sp,
@@ -207,6 +259,7 @@ fun CrisisAlertScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
+            // Banner de confirmación visible solo cuando todos los contactos fueron notificados
             if (allSent) {
                 Box(
                     modifier = Modifier
@@ -217,11 +270,11 @@ fun CrisisAlertScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text      = "✓ Todos los contactos fueron avisados",
-                        fontSize  = 14.sp,
+                        text       = "✓ Todos los contactos fueron avisados",
+                        fontSize   = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color     = KairosGreen,
-                        textAlign = TextAlign.Center
+                        color      = KairosGreen,
+                        textAlign  = TextAlign.Center
                     )
                 }
             }
@@ -231,9 +284,9 @@ fun CrisisAlertScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text  = if (allSent) "Cerrar" else "Omitir por ahora",
+                    text     = if (allSent) "Cerrar" else "Omitir por ahora",
                     fontSize = 13.sp,
-                    color = TextSecondary
+                    color    = TextSecondary
                 )
             }
 

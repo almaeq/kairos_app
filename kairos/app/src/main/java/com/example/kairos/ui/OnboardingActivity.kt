@@ -26,16 +26,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Activity que muestra el flujo de onboarding de 4 páginas la primera vez
+ * que el usuario abre KAIROS.
+ *
+ * El estado de completado se persiste en SharedPreferences via [hasCompleted]
+ * y [markCompleted]. Al finalizar o saltar el onboarding, navega a [TermsActivity]
+ * para que el usuario acepte los términos de uso antes de acceder a la app.
+ *
+ * El onboarding solo se muestra una vez — [MainActivity] verifica [hasCompleted]
+ * al iniciar y redirige aquí si es la primera apertura.
+ */
 class OnboardingActivity : ComponentActivity() {
 
     companion object {
         private const val PREFS_NAME    = "kairos_onboarding"
         private const val KEY_COMPLETED = "onboarding_completed"
 
+        /**
+         * Verifica si el usuario ya completó o saltó el onboarding.
+         *
+         * @param context Contexto para acceder a SharedPreferences.
+         * @return `true` si el onboarding ya fue visto, `false` si es la primera apertura.
+         */
         fun hasCompleted(context: Context): Boolean =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(KEY_COMPLETED, false)
 
+        /**
+         * Marca el onboarding como completado en SharedPreferences.
+         * Se invoca tanto al finalizar la última página como al presionar "Saltar".
+         *
+         * @param context Contexto para acceder a SharedPreferences.
+         */
         fun markCompleted(context: Context) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_COMPLETED, true).apply()
@@ -48,7 +71,7 @@ class OnboardingActivity : ComponentActivity() {
             OnboardingScreen(
                 onFinish = {
                     markCompleted(this)
-                    // Ir a términos de uso
+                    // Navegamos a TermsActivity para aceptación de términos antes de la app
                     TermsActivity.launchForOnboarding(this)
                     finish()
                 }
@@ -57,8 +80,16 @@ class OnboardingActivity : ComponentActivity() {
     }
 }
 
-// ── Modelo de datos de cada página ────────────────────────────────────────────
-
+/**
+ * Modelo de datos de una página del onboarding.
+ *
+ * @property emoji Ícono grande mostrado en el círculo de acento.
+ * @property title Título principal de la página.
+ * @property description Subtítulo destacado con el color de acento.
+ * @property detail Texto explicativo detallado mostrado en la card oscura.
+ * @property accentColor Color de acento único por página, aplicado al círculo,
+ *           al subtítulo, al indicador de página activo y al botón "Siguiente".
+ */
 data class OnboardingPage(
     val emoji:       String,
     val title:       String,
@@ -67,8 +98,23 @@ data class OnboardingPage(
     val accentColor: Color
 )
 
-// ── Pantalla principal ────────────────────────────────────────────────────────
-
+/**
+ * Pantalla de onboarding con 4 páginas animadas.
+ *
+ * Cada página presenta una funcionalidad clave de KAIROS con su propio color de acento.
+ * La transición entre páginas usa slide horizontal + fade para sensación de avance lineal.
+ *
+ * **Indicadores de página:**
+ * El indicador activo se expande a 24dp de ancho (los inactivos miden 8dp × 8dp),
+ * creando un efecto de "pastilla" que señala la página actual.
+ *
+ * **Navegación:**
+ * - "Siguiente →" avanza a la página siguiente.
+ * - En la última página, el mismo botón dice "Comenzar →" e invoca [onFinish].
+ * - "Saltar" (visible solo si no es la última página) invoca [onFinish] directamente.
+ *
+ * @param onFinish Callback invocado al completar o saltar el onboarding.
+ */
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
 
@@ -121,17 +167,15 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             .background(Background)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+            modifier            = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 
-            // ── Indicadores de página ─────────────────────────────────────────
+            // Indicadores de página: el activo se expande horizontalmente a 24dp
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment     = Alignment.CenterVertically
             ) {
                 pages.forEachIndexed { index, _ ->
                     Box(
@@ -148,23 +192,22 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // ── Contenido animado ─────────────────────────────────────────────
+            // Contenido animado con slide horizontal entre páginas
             AnimatedContent(
-                targetState = currentPage,
+                targetState    = currentPage,
                 transitionSpec = {
                     (slideInHorizontally { it } + fadeIn()) togetherWith
                             (slideOutHorizontally { -it } + fadeOut())
                 },
                 modifier = Modifier.weight(1f),
-                label = "onboarding_page"
+                label    = "onboarding_page"
             ) { page ->
                 val data = pages[page]
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxSize()
+                    modifier            = Modifier.fillMaxSize()
                 ) {
-                    // Emoji grande
                     Box(
                         modifier = Modifier
                             .size(120.dp)
@@ -188,10 +231,10 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text      = data.description,
-                        fontSize  = 16.sp,
-                        color     = data.accentColor,
-                        textAlign = TextAlign.Center,
+                        text       = data.description,
+                        fontSize   = 16.sp,
+                        color      = data.accentColor,
+                        textAlign  = TextAlign.Center,
                         fontWeight = FontWeight.SemiBold
                     )
 
@@ -205,10 +248,10 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                             .padding(20.dp)
                     ) {
                         Text(
-                            text      = data.detail,
-                            fontSize  = 14.sp,
-                            color     = TextSecondary,
-                            textAlign = TextAlign.Center,
+                            text       = data.detail,
+                            fontSize   = 14.sp,
+                            color      = TextSecondary,
+                            textAlign  = TextAlign.Center,
                             lineHeight = 21.sp
                         )
                     }
@@ -217,7 +260,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Botones ───────────────────────────────────────────────────────
+            // El color del botón cambia con cada página para mantener coherencia visual
             Button(
                 onClick = {
                     if (isLast) onFinish()
@@ -241,6 +284,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // "Saltar" solo visible mientras no se llegó a la última página
             if (!isLast) {
                 TextButton(
                     onClick  = onFinish,

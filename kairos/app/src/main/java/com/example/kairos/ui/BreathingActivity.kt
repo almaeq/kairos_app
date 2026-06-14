@@ -29,9 +29,28 @@ import com.example.kairos.mobile.techniques.BREATHING_PHASES
 import com.example.kairos.mobile.techniques.BREATHING_TOTAL_CYCLES
 import com.example.kairos.mobile.techniques.BreathingState
 
+/**
+ * Activity que muestra el ejercicio de respiración box (4-4-4-4) en el teléfono
+ * durante el Modo Crisis.
+ *
+ * La pantalla es un espejo visual del ejercicio que se ejecuta en el reloj:
+ * no controla el timing ni el avance de fases — eso lo maneja el reloj.
+ * Se limita a observar [BreathingState] y renderizar el estado actual.
+ *
+ * Se lanza desde [KairosPhoneListener] cuando llega el primer mensaje
+ * `/kairos/breathing/update` con cycle=1 y phase="Inhalá".
+ */
 class BreathingActivity : ComponentActivity() {
 
     companion object {
+        /**
+         * Lanza la Activity desde cualquier contexto (incluyendo servicios).
+         *
+         * [Intent.FLAG_ACTIVITY_CLEAR_TOP] evita apilar múltiples instancias
+         * si el reloj envía actualizaciones repetidas antes de que la Activity abra.
+         *
+         * @param context Contexto desde el que se lanza la Activity.
+         */
         fun launch(context: Context) {
             context.startActivity(
                 Intent(context, BreathingActivity::class.java).apply {
@@ -55,9 +74,27 @@ class BreathingActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Pantalla del ejercicio de respiración box en el teléfono.
+ *
+ * Muestra tres estados posibles según [currentPhase]:
+ * - **Esperando** (`""`): el reloj aún no inició el ejercicio.
+ * - **Fase activa** (`"Inhalá"`, `"Retené"`, `"Exhalá"`): círculo animado con instrucción.
+ * - **Completado** (`"done"`): mensaje de cierre con checkmark.
+ *
+ * **Animación del círculo:**
+ * El círculo se expande durante "Inhalá" (targetScale=1.15) y se contrae durante
+ * "Exhalá" (targetScale=0.75), retroalimentando visualmente la respiración.
+ * Durante "Retené" mantiene la escala del estado anterior para no generar
+ * un movimiento brusco entre fases.
+ *
+ * @param currentPhase Fase actual del ejercicio recibida desde [BreathingState].
+ * @param currentCycle Ciclo actual (1 a [BREATHING_TOTAL_CYCLES]).
+ * @param onDismiss Callback para cerrar la Activity (botón "Cerrar" u "Omitir").
+ */
 @Composable
 fun BreathingPhoneScreen(
-    currentPhase: String,  // "Inhalá", "Retené", "Exhalá" | "" = esperando | "done" = terminado
+    currentPhase: String,
     currentCycle: Int,
     onDismiss:    () -> Unit
 ) {
@@ -72,20 +109,24 @@ fun BreathingPhoneScreen(
     val isFinished = currentPhase == "done"
     val isWaiting  = currentPhase == ""
 
-    // Color según la fase
+    // Color de acento que cambia según la fase para retroalimentación visual
     val phaseColor = when (currentPhase) {
-        "Inhalá"  -> KairosBlue
-        "Exhalá"  -> KairTeal
-        else      -> KairosBlue.copy(alpha = 0.7f)
+        "Inhalá" -> KairosBlue
+        "Exhalá" -> KairTeal
+        else     -> KairosBlue.copy(alpha = 0.7f)
     }
 
-    // Escala del círculo — se expande en Inhalá, se contrae en Exhalá
+    // Durante "Retené", mantiene la escala del estado anterior (inhalado o exhalado)
+    // para evitar un movimiento brusco entre fases
     val targetScale = when (currentPhase) {
-        "Inhalá"  -> 1.15f
-        "Retené"  -> if (currentCycle > 0) 1.15f else 0.85f // mantiene el estado anterior
-        "Exhalá"  -> 0.75f
-        else      -> 1.0f
+        "Inhalá" -> 1.15f
+        "Retené" -> if (currentCycle > 0) 1.15f else 0.85f
+        "Exhalá" -> 0.75f
+        else     -> 1.0f
     }
+
+    // La duración de la animación coincide con la duración real de la fase (≈4s)
+    // para que la expansión/contracción del círculo termine justo cuando cambia la fase
     val animatedScale by animateFloatAsState(
         targetValue   = targetScale,
         animationSpec = tween(
@@ -100,7 +141,7 @@ fun BreathingPhoneScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier            = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -118,6 +159,7 @@ fun BreathingPhoneScreen(
                 color    = TextSecondary
             )
 
+            // AnimatedContent hace crossfade entre los tres estados de la pantalla
             AnimatedContent(
                 targetState    = currentPhase,
                 transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(300)) },
@@ -125,14 +167,14 @@ fun BreathingPhoneScreen(
             ) { phase ->
                 when {
                     isFinished -> {
-                        // ── Finalizado ────────────────────────────────────
+                        // ── Estado: ejercicio completado ──────────────────
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier            = Modifier.fillMaxWidth()
                         ) {
                             Box(
-                                modifier = Modifier
+                                modifier         = Modifier
                                     .size(120.dp)
                                     .background(KairosBlue.copy(alpha = 0.15f), CircleShape),
                                 contentAlignment = Alignment.Center
@@ -147,23 +189,23 @@ fun BreathingPhoneScreen(
                                 textAlign  = TextAlign.Center
                             )
                             Text(
-                                text      = "Tu ritmo cardíaco se está estabilizando.\nRespiración: normalizada.",
-                                fontSize  = 14.sp,
-                                color     = TextSecondary,
-                                textAlign = TextAlign.Center,
+                                text       = "Tu ritmo cardíaco se está estabilizando.\nRespiración: normalizada.",
+                                fontSize   = 14.sp,
+                                color      = TextSecondary,
+                                textAlign  = TextAlign.Center,
                                 lineHeight = 20.sp
                             )
                         }
                     }
 
                     isWaiting -> {
-                        // ── Esperando inicio ──────────────────────────────
+                        // ── Estado: esperando inicio desde el reloj ───────
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
-                                modifier = Modifier
+                                modifier         = Modifier
                                     .size(140.dp)
                                     .scale(animatedScale)
                                     .background(KairosBlue.copy(alpha = 0.1f), CircleShape),
@@ -186,22 +228,21 @@ fun BreathingPhoneScreen(
                     }
 
                     else -> {
-                        // ── Fase activa ───────────────────────────────────
+                        // ── Estado: fase activa ───────────────────────────
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier            = Modifier.fillMaxWidth()
                         ) {
-                            // Contador de ciclos
                             Text(
                                 text     = "Ciclo $currentCycle / $BREATHING_TOTAL_CYCLES",
                                 fontSize = 13.sp,
                                 color    = TextSecondary
                             )
 
-                            // Círculo animado con la fase
+                            // Círculo animado — se expande/contrae con la respiración
                             Box(
-                                modifier = Modifier
+                                modifier         = Modifier
                                     .size(160.dp)
                                     .scale(animatedScale)
                                     .background(phaseColor.copy(alpha = 0.12f), CircleShape),
@@ -223,7 +264,7 @@ fun BreathingPhoneScreen(
                                 }
                             }
 
-                            // Instrucción contextual según la fase
+                            // Instrucción contextual adaptada a cada fase
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -233,18 +274,19 @@ fun BreathingPhoneScreen(
                             ) {
                                 Text(
                                     text = when (phase) {
-                                        "Inhalá"  -> "Inhalá lento por la nariz contando hasta 4. Sentí cómo se expande tu pecho."
-                                        "Exhalá"  -> "Exhalá despacio por la boca contando hasta 4. Soltá toda la tensión."
-                                        else      -> "Mantené el aire. Relajá los hombros. Quedate quieta."
+                                        "Inhalá" -> "Inhalá lento por la nariz contando hasta 4. Sentí cómo se expande tu pecho."
+                                        "Exhalá" -> "Exhalá despacio por la boca contando hasta 4. Soltá toda la tensión."
+                                        else     -> "Mantené el aire. Relajá los hombros. Quedate quieta."
                                     },
-                                    fontSize  = 15.sp,
-                                    color     = TextPrimary,
-                                    textAlign = TextAlign.Center,
+                                    fontSize   = 15.sp,
+                                    color      = TextPrimary,
+                                    textAlign  = TextAlign.Center,
                                     lineHeight = 22.sp
                                 )
                             }
 
-                            // Indicadores de ciclos
+                            // Indicadores de progreso de ciclos (puntos)
+                            // El punto activo es más grande y usa el color de la fase actual
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment     = Alignment.CenterVertically
@@ -265,7 +307,7 @@ fun BreathingPhoneScreen(
                                 }
                             }
 
-                            // Secuencia de fases del ciclo
+                            // Secuencia de fases del ciclo — resalta la fase activa
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment     = Alignment.CenterVertically
