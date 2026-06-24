@@ -116,7 +116,7 @@ object WatchBaseline {
         WatchCrisisDetector.getInstance(context).reset()
 
         // Paso 3: resetear el estado observable de la UI del reloj
-        WatchMonitorState.reset()
+        WatchMonitorState.resetFull()
 
         // Paso 4: resetear el timestamp de ventana en el servicio para que
         // la próxima ventana comience desde cero

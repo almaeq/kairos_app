@@ -85,14 +85,17 @@ object WatchMonitorState {
         )
     }
 
-    /**
-     * Resetea el estado al valor inicial.
-     *
-     * Se invoca desde [WatchBaseline.clear] cuando el usuario recalibra,
-     * para que la UI muestre "0/3" inmediatamente sin esperar el próximo
-     * ciclo de análisis del sensor.
-     */
-    fun reset() {
+    // Para cuando termina un ejercicio o se cancela una crisis — NO toca calibración
+    fun resetCrisisState() {
+        _state.value = _state.value.copy(
+            heartRate   = 0.0,
+            rmssd       = 0.0,
+            crisisState = WatchCrisisState.NORMAL
+        )
+    }
+
+    // Para cuando el usuario realmente recalibra — sí resetea todo
+    fun resetFull() {
         _state.value = WatchMonitorData()
     }
 }

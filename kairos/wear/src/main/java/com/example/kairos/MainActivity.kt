@@ -109,6 +109,8 @@ class MainActivity : ComponentActivity() {
                         onResetBaseline   = {
                             lifecycleScope.launch {
                                 WatchBaseline.clear(this@MainActivity)
+                                WatchCrisisDetector.getInstance(this@MainActivity).reset()
+                                WatchMonitorState.resetFull()  // ← usa el reset completo
                                 Log.d("KairosWatch", "Baseline borrado")
                             }
                         },
@@ -162,7 +164,7 @@ class MainActivity : ComponentActivity() {
                 Log.e("KairosWatch", "Error: ${e.message}")
             }
         }
-        WatchMonitorState.reset()
+        WatchMonitorState.resetCrisisState()
     }
 }
 
@@ -255,7 +257,7 @@ fun MainWatchScreen(
                     if (exercisePref == ExercisePreference.BOTH) {
                         currentScreen = WatchScreen.GROUNDING
                     } else {
-                        WatchMonitorState.reset()
+                        WatchMonitorState.resetCrisisState()
                         currentScreen = WatchScreen.MONITOR
                     }
                 }
@@ -264,7 +266,7 @@ fun MainWatchScreen(
             WatchScreen.GROUNDING -> GroundingScreen(
                 onFinished = {
                     InterventionSession.onGroundingFinished(context)
-                    WatchMonitorState.reset()
+                    WatchMonitorState.resetCrisisState()
                     currentScreen = WatchScreen.MONITOR
                 }
             )

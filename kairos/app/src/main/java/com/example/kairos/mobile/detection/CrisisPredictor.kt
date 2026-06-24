@@ -36,7 +36,7 @@ object CrisisPredictor {
     private const val TAG = "CrisisPredictor"
 
     /** Umbral de probabilidad para activar la pantalla de pre-alerta. */
-    const val THRESHOLD_PRE_ALERT = 0.55
+    const val THRESHOLD_PRE_ALERT = 0.25
 
     /**
      * Umbral de probabilidad para confirmar una crisis y activar el Modo Crisis.
@@ -46,7 +46,7 @@ object CrisisPredictor {
      * Para KAIROS, eliminar las falsas alarmas es prioritario sobre maximizar el recall,
      * ya que una falsa alarma puede generar desconfianza en el sistema.
      */
-    const val THRESHOLD_CRISIS = 0.75
+    const val THRESHOLD_CRISIS = 0.3
 
     /**
      * Resultado de una predicción del modelo Random Forest.

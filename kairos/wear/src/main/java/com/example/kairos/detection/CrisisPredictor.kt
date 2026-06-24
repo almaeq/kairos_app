@@ -30,13 +30,13 @@ object CrisisPredictor {
     private const val TAG = "CrisisPredictor"
 
     /** Umbral para activar la pre-alerta en el reloj y esperar confirmación del usuario. */
-    const val THRESHOLD_PRE_ALERT = 0.55
+    const val THRESHOLD_PRE_ALERT = 0.25
 
     /**
      * Umbral para confirmar la crisis y activar el Modo Crisis completo.
      * Elegido para Precision = 1.0 — cero falsas alarmas a costa de menor recall.
      */
-    const val THRESHOLD_CRISIS = 0.75
+    const val THRESHOLD_CRISIS = 0.3
 
     /**
      * Resultado de una predicción del modelo Random Forest en el reloj.
