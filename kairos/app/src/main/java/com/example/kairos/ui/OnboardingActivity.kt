@@ -139,7 +139,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             emoji       = "⌚",
             title       = "Detección automática",
             description = "El reloj trabaja, vos descansás.",
-            detail      = "Un modelo de Machine Learning analiza tu ritmo cardíaco y variabilidad en tiempo real. Si detecta una desviación sostenida de tu baseline personal durante 3 minutos, activa el modo crisis — con ejercicios guiados de respiración y grounding.",
+            detail      = "Un modelo de Machine Learning analiza tu ritmo cardíaco y variabilidad en tiempo real. Si detecta una desviación sostenida de tu baseline personal durante 3 minutos, activa el modo crisis, con ejercicios guiados de respiración y grounding.",
             accentColor = KairosGreen
         ),
         OnboardingPage(

@@ -35,7 +35,6 @@ import com.example.kairos.mobile.MonitorState
 import com.example.kairos.mobile.SmsAlertManager
 import com.example.kairos.mobile.data.BaselineRepository
 import com.example.kairos.mobile.data.db.KairosDatabase
-import com.example.kairos.ui.CalibrationActivity
 import com.example.kairos.ui.ContactsActivity
 import com.example.kairos.ui.ExerciseSettingsActivity
 import com.example.kairos.ui.ProfileActivity
@@ -132,7 +131,6 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MonitorScreen(
-                onRecalibrate = { recalibrate() },
                 onContacts    = { startActivity(Intent(this, ContactsActivity::class.java)) },
                 onTechnique   = { startActivity(Intent(this, ExerciseSettingsActivity::class.java)) },
                 onProfile     = { startActivity(Intent(this, ProfileActivity::class.java)) },
@@ -147,18 +145,6 @@ class MainActivity : ComponentActivity() {
         // try/catch porque unregisterReceiver lanza IllegalArgumentException si el receiver
         // nunca fue registrado (por ejemplo, si onCreate terminó antes del registro)
         try { unregisterReceiver(smsReceiver) } catch (e: Exception) { }
-    }
-
-    /**
-     * Borra el baseline local y del reloj, y lanza [CalibrationActivity] para recalibrar.
-     *
-     * Se invoca cuando el usuario presiona "↺ Recalibrar baseline" en la pantalla principal.
-     */
-    private fun recalibrate() {
-        lifecycleScope.launch {
-            baselineRepo.clear()
-            startActivity(Intent(this@MainActivity, CalibrationActivity::class.java))
-        }
     }
 
     companion object {
@@ -184,7 +170,6 @@ class MainActivity : ComponentActivity() {
  * (400ms, scale 1.15) que en estado normal (1000ms, scale 1.05), comunicando
  * urgencia sin palabras.
  *
- * @param onRecalibrate Callback para borrar el baseline y lanzar la calibración.
  * @param onContacts Callback para navegar a la gestión de contactos de confianza.
  * @param onTechnique Callback para navegar a la configuración de ejercicios.
  * @param onProfile Callback para navegar al perfil fisiológico personal.
@@ -193,7 +178,6 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun MonitorScreen(
-    onRecalibrate: () -> Unit = {},
     onContacts:    () -> Unit = {},
     onTechnique:   () -> Unit = {},
     onProfile:     () -> Unit = {},
@@ -440,9 +424,6 @@ fun MonitorScreen(
             }
             TextButton(onClick = onEpisodes, modifier = Modifier.fillMaxWidth()) {
                 Text("📋 Registro de episodios", fontSize = 13.sp, color = TextSecondary)
-            }
-            TextButton(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth()) {
-                Text("↺  Recalibrar baseline", fontSize = 13.sp, color = TextSecondary)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
