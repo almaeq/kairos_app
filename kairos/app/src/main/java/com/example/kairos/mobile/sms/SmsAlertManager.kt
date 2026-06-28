@@ -1,4 +1,4 @@
-package com.example.kairos.mobile
+package com.example.kairos.mobile.sms
 
 import android.content.Context
 import android.content.Intent

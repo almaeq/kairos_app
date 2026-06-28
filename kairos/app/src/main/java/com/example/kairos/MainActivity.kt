@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.example.kairos.mobile.CrisisState
 import com.example.kairos.mobile.MonitorState
-import com.example.kairos.mobile.SmsAlertManager
+import com.example.kairos.mobile.sms.SmsAlertManager
 import com.example.kairos.mobile.data.BaselineRepository
 import com.example.kairos.mobile.data.db.KairosDatabase
 import com.example.kairos.ui.ContactsActivity

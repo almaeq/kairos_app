@@ -48,12 +48,18 @@ class CrisisAlertActivity : ComponentActivity() {
 
         /**
          * Mensaje SMS prellenado para el contacto de confianza.
-         * Más conciso que el mensaje de [SmsAlertManager] porque en esta pantalla
-         * el usuario tiene control directo sobre el envío.
+         * Incluye instrucciones concretas de acción, igual que el mensaje
+         * de [SmsAlertManager], para que el contacto sepa cómo ayudar al usuario.
          */
         private const val SMS_MESSAGE =
-            "🚨 KAIROS: Necesito ayuda. Mi app detectó una crisis de ansiedad y no respondí en 30 segundos. " +
-                    "Por favor comunicate conmigo."
+            "🚨 KAIROS - Crisis de ansiedad detectada\n\n" +
+                    "Tu contacto de confianza en KAIROS necesita ayuda ahora.\n\n" +
+                    "Qué hacer:\n" +
+                    "1. Llamale o escribile ya\n" +
+                    "2. Hablale con calma, no la apures\n" +
+                    "3. Quedáte en línea hasta que se sienta mejor\n" +
+                    "Una crisis de pánico no es peligrosa pero necesita acompañamiento. " +
+                    "Tu presencia ayuda muchísimo."
 
         /**
          * Lanza la Activity desde cualquier contexto.
